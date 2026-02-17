@@ -1,0 +1,52 @@
+{
+  "metadata": {
+    "execution_time": "2026-02-17T08:24:20.427826800Z",
+    "mysql_version": "8.0.45",
+    "total_result_sets": 1,
+    "source_file": "reports/daily_summary.sql",
+    "execution_duration_ms": 2
+  },
+  "result_sets": [
+    {
+      "index": 0,
+      "columns": [
+        {
+          "name": "report_date",
+          "data_type": "MYSQL_TYPE_DATE"
+        },
+        {
+          "name": "total_users",
+          "data_type": "MYSQL_TYPE_LONGLONG"
+        },
+        {
+          "name": "active_users",
+          "data_type": "MYSQL_TYPE_LONGLONG"
+        },
+        {
+          "name": "today_orders",
+          "data_type": "MYSQL_TYPE_LONGLONG"
+        },
+        {
+          "name": "today_revenue",
+          "data_type": "MYSQL_TYPE_NEWDECIMAL"
+        },
+        {
+          "name": "products_in_stock",
+          "data_type": "MYSQL_TYPE_LONGLONG"
+        }
+      ],
+      "rows": [
+        {
+          "active_users": "2",
+          "products_in_stock": "3",
+          "report_date": "2026-02-17",
+          "today_orders": "2",
+          "today_revenue": "129.97",
+          "total_users": "3"
+        }
+      ],
+      "row_count": 1,
+      "affected_rows": 0
+    }
+  ]
+}

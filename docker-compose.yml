@@ -1,0 +1,58 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: mysql-executor-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: testdb
+      MYSQL_USER: executor
+      MYSQL_PASSWORD: executorpass
+      MYSQL_CHARSET: utf8mb4
+      MYSQL_COLLATION: utf8mb4_unicode_ci
+    ports:
+      - "3754:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./init-db:/docker-entrypoint-initdb.d
+    command: >
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --default-authentication-plugin=mysql_native_password
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpassword"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - mysql-executor-network
+
+  mysql-executor:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      platforms:
+        - linux/amd64
+        - linux/arm64
+    container_name: mysql-executor-app
+    restart: "no"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      RUST_LOG: info
+      MYSQL_EXECUTOR_CONFIG: /app/config/config.toml
+    volumes:
+      - ./config:/app/config:ro
+      - ./sql:/app/sql
+    networks:
+      - mysql-executor-network
+
+volumes:
+  mysql_data:
+    driver: local
+
+networks:
+  mysql-executor-network:
+    driver: bridge

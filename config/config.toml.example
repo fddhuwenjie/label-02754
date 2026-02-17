@@ -1,0 +1,31 @@
+# MySQL Executor Configuration Example
+# Copy this file to config.toml and modify as needed
+
+[database]
+# MySQL connection settings
+host = "localhost"
+port = 3306
+username = "root"
+password = "your_password"
+database = "your_database"
+
+# Connection pool size (default: 10)
+pool_size = 10
+
+# Query timeout in seconds (default: 300)
+timeout_seconds = 300
+
+[execution]
+# Directory to scan for SQL files (relative or absolute path)
+scan_directory = "./sql"
+
+# Maximum number of concurrent SQL file executions (default: 4)
+max_concurrent_files = 4
+
+# File-specific generation intervals (in minutes)
+# Files not listed here will be regenerated on every run
+# Use relative paths from scan_directory
+[execution.file_intervals]
+# "queries/daily_report.sql" = 1440  # Once per day (24 hours)
+# "queries/hourly_stats.sql" = 60    # Once per hour
+# "reports/weekly.sql" = 10080       # Once per week

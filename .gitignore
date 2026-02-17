@@ -1,0 +1,41 @@
+# Rust
+/backend/target/
+**/*.rs.bk
+Cargo.lock
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+logs/
+
+# Docker
+docker-compose.override.yml
+
+# Generated JSON files (optional - uncomment if you don't want to track them)
+# sql/**/*.json
+
+# Temporary files
+*.tmp
+.tmp_*
+
+# Config with sensitive data (keep template)
+config/config.toml
+!config/config.toml.example
+
+# MySQL data
+mysql_data/

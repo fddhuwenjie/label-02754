@@ -1,0 +1,60 @@
+{
+  "metadata": {
+    "execution_time": "2026-02-17T12:54:47.030716295Z",
+    "mysql_version": "8.0.45",
+    "total_result_sets": 1,
+    "source_file": "example_queries/json_data.sql",
+    "execution_duration_ms": 7
+  },
+  "result_sets": [
+    {
+      "index": 0,
+      "columns": [
+        {
+          "name": "id",
+          "data_type": "MYSQL_TYPE_LONG"
+        },
+        {
+          "name": "username",
+          "data_type": "MYSQL_TYPE_VAR_STRING"
+        },
+        {
+          "name": "email",
+          "data_type": "MYSQL_TYPE_VAR_STRING"
+        },
+        {
+          "name": "metadata",
+          "data_type": "MYSQL_TYPE_JSON"
+        },
+        {
+          "name": "user_role",
+          "data_type": "MYSQL_TYPE_JSON"
+        },
+        {
+          "name": "theme_preference",
+          "data_type": "MYSQL_TYPE_JSON"
+        }
+      ],
+      "rows": [
+        {
+          "email": "test1@example.com",
+          "id": "1",
+          "metadata": "{\"role\": \"admin\", \"preferences\": {\"theme\": \"dark\"}}",
+          "theme_preference": "\"dark\"",
+          "user_role": "\"admin\"",
+          "username": "testuser1"
+        },
+        {
+          "email": "test2@example.com",
+          "id": "2",
+          "metadata": "{\"role\": \"user\", \"preferences\": {\"theme\": \"light\"}}",
+          "theme_preference": "\"light\"",
+          "user_role": "\"user\"",
+          "username": "testuser2"
+        }
+      ],
+      "row_count": 2,
+      "affected_rows": 0
+    }
+  ]
+}
