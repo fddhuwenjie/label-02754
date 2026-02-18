@@ -1,7 +1,7 @@
-//! Database connection and query execution module.
+//! 数据库连接和查询执行模块
 //!
-//! This module provides MySQL database connectivity with connection pooling,
-//! query execution, and result set handling with streaming support for large datasets.
+//! 本模块提供 MySQL 数据库连接功能，包括连接池、查询执行，
+//! 以及支持大数据集流式处理的结果集处理。
 
 use crate::config::DatabaseConfig;
 use log::warn;
@@ -11,33 +11,33 @@ use std::sync::Arc;
 use std::time::Duration;
 use thiserror::Error;
 
-/// Maximum number of rows to load in memory before switching to streaming mode.
+/// 切换到流式模式前的最大内存行数
 const STREAMING_THRESHOLD: usize = 10000;
 
-/// Database operation errors.
+/// 数据库操作错误
 #[derive(Error, Debug)]
 pub enum DatabaseError {
-    /// Failed to establish database connection
-    #[error("Connection error: {0}")]
+    /// 建立数据库连接失败
+    #[error("连接错误: {0}")]
     ConnectionError(String),
-    /// SQL query execution failed
-    #[error("Query execution error: {0}")]
+    /// SQL 查询执行失败
+    #[error("查询执行错误: {0}")]
     QueryError(String),
-    /// Connection pool error
-    #[error("Pool error: {0}")]
+    /// 连接池错误
+    #[error("连接池错误: {0}")]
     PoolError(String),
-    /// Access denied due to insufficient privileges
-    #[error("Access denied: {0}")]
+    /// 权限不足导致访问被拒绝
+    #[error("访问被拒绝: {0}")]
     AccessDenied(String),
-    /// Query execution timeout
-    #[error("Query timeout: exceeded {0} seconds")]
+    /// 查询执行超时
+    #[error("查询超时: 超过 {0} 秒")]
     Timeout(u64),
 }
 
 impl From<mysql::Error> for DatabaseError {
     fn from(err: mysql::Error) -> Self {
         let err_str = err.to_string();
-        // Check for access denied errors (MySQL error codes 1044, 1045, 1142, 1143, 1227)
+        // 检查访问被拒绝错误（MySQL 错误码 1044, 1045, 1142, 1143, 1227）
         if err_str.contains("Access denied")
             || err_str.contains("access denied")
             || err_str.contains("1044")
@@ -55,7 +55,7 @@ impl From<mysql::Error> for DatabaseError {
     }
 }
 
-/// MySQL connection pool with streaming support.
+/// 支持流式处理的 MySQL 连接池
 #[derive(Clone)]
 pub struct DatabasePool {
     pool: Arc<Pool>,
@@ -65,10 +65,12 @@ pub struct DatabasePool {
 }
 
 impl DatabasePool {
+    /// 创建新的数据库连接池
     pub fn new(config: &DatabaseConfig) -> Result<Self, DatabaseError> {
         Self::with_streaming_threshold(config, STREAMING_THRESHOLD)
     }
 
+    /// 创建带自定义流式阈值的数据库连接池
     pub fn with_streaming_threshold(
         config: &DatabaseConfig,
         streaming_threshold: usize,
@@ -94,25 +96,26 @@ impl DatabasePool {
         })
     }
 
+    /// 从连接池获取连接
     pub fn get_connection(&self) -> Result<PooledConn, DatabaseError> {
         self.pool
             .get_conn()
             .map_err(|e| DatabaseError::PoolError(e.to_string()))
     }
 
-    /// Execute SQL and return results with streaming support for large result sets
+    /// 执行 SQL 并返回结果，支持大结果集的流式处理
     pub fn execute_sql(&self, sql: &str) -> Result<QueryResults, DatabaseError> {
         let mut conn = self.get_connection()?;
         let mut results = QueryResults::new();
 
-        // Get MySQL version
+        // 获取 MySQL 版本
         let version: Option<String> = conn.query_first("SELECT VERSION()").unwrap_or(None);
         results.mysql_version = version;
 
-        // Execute the SQL and collect all result sets
+        // 执行 SQL 并收集所有结果集
         let mut query_result = conn.query_iter(sql)?;
 
-        // Process all result sets with streaming support
+        // 使用流式处理处理所有结果集
         while let Some(result_set) = query_result.iter() {
             let columns: Vec<ColumnInfo> = result_set
                 .columns()
@@ -129,18 +132,18 @@ impl DatabasePool {
             let mut row_count: usize = 0;
             let mut truncated = false;
 
-            // Stream rows with threshold check to prevent memory overflow
+            // 流式读取行，检查阈值以防止内存溢出
             for row_result in result_set {
                 let row: Row = row_result?;
 
-                // Check if we've exceeded the streaming threshold
+                // 检查是否超过流式阈值
                 if row_count >= self.streaming_threshold {
                     truncated = true;
                     warn!(
-                        "Result set truncated at {} rows (streaming threshold reached)",
+                        "结果集在 {} 行处被截断（达到流式阈值）",
                         self.streaming_threshold
                     );
-                    // Continue iterating to consume the result set but don't store
+                    // 继续迭代以消费结果集，但不存储
                     continue;
                 }
 
@@ -166,12 +169,16 @@ impl DatabasePool {
     }
 }
 
+/// 列信息
 #[derive(Debug, Clone)]
 pub struct ColumnInfo {
+    /// 列名
     pub name: String,
+    /// 列类型
     pub column_type: String,
 }
 
+/// JSON 值枚举，用于 MySQL 到 JSON 的类型转换
 #[derive(Debug, Clone)]
 pub enum JsonValue {
     Null,
@@ -188,6 +195,7 @@ pub enum JsonValue {
 }
 
 impl JsonValue {
+    /// 转换为 serde_json::Value
     pub fn to_serde_value(&self) -> serde_json::Value {
         match self {
             JsonValue::Null => serde_json::Value::Null,
@@ -215,12 +223,13 @@ impl JsonValue {
     }
 }
 
+/// 将 MySQL 值转换为 JSON 值
 fn convert_mysql_value_to_json(value: Option<Value>) -> JsonValue {
     match value {
         None => JsonValue::Null,
         Some(Value::NULL) => JsonValue::Null,
         Some(Value::Bytes(b)) => {
-            // Try to convert to UTF-8 string first
+            // 首先尝试转换为 UTF-8 字符串
             match String::from_utf8(b.clone()) {
                 Ok(s) => JsonValue::String(s),
                 Err(_) => JsonValue::Bytes(b),
@@ -251,24 +260,32 @@ fn convert_mysql_value_to_json(value: Option<Value>) -> JsonValue {
     }
 }
 
+/// 单个结果集
 #[derive(Debug, Clone)]
 pub struct ResultSet {
+    /// 列信息列表
     pub columns: Vec<ColumnInfo>,
+    /// 行数据
     pub rows: Vec<Vec<JsonValue>>,
+    /// 影响的行数
     pub affected_rows: u64,
-    /// Indicates if the result set was truncated due to streaming threshold
+    /// 是否因流式阈值而被截断
     pub truncated: bool,
-    /// Total number of rows processed (may be larger than rows.len() if truncated)
+    /// 处理的总行数（如果被截断，可能大于 rows.len()）
     pub total_rows: usize,
 }
 
+/// 查询结果
 #[derive(Debug, Clone)]
 pub struct QueryResults {
+    /// 结果集列表
     pub result_sets: Vec<ResultSet>,
+    /// MySQL 版本
     pub mysql_version: Option<String>,
 }
 
 impl QueryResults {
+    /// 创建新的空查询结果
     pub fn new() -> Self {
         Self {
             result_sets: Vec::new(),
@@ -328,11 +345,11 @@ mod tests {
         let result = value.to_serde_value();
         assert!(result.is_number());
 
-        // NaN should become null
+        // NaN 应该变成 null
         let nan = JsonValue::Float(f64::NAN);
         assert_eq!(nan.to_serde_value(), serde_json::Value::Null);
 
-        // Infinity should become null
+        // 无穷大应该变成 null
         let inf = JsonValue::Float(f64::INFINITY);
         assert_eq!(inf.to_serde_value(), serde_json::Value::Null);
     }
@@ -363,7 +380,7 @@ mod tests {
         let value = JsonValue::Bytes(vec![0x48, 0x65, 0x6c, 0x6c, 0x6f]); // "Hello"
         let result = value.to_serde_value();
         assert!(result.is_string());
-        // Should be base64 encoded
+        // 应该是 base64 编码
         assert_eq!(result.as_str().unwrap(), "SGVsbG8=");
     }
 
@@ -424,7 +441,7 @@ mod tests {
         if let JsonValue::Float(f) = result {
             assert!((f - 3.14).abs() < 0.001);
         } else {
-            panic!("Expected Float");
+            panic!("期望 Float");
         }
     }
 
@@ -434,7 +451,7 @@ mod tests {
         if let JsonValue::Float(f) = result {
             assert!((f - 3.14159).abs() < 0.00001);
         } else {
-            panic!("Expected Float");
+            panic!("期望 Float");
         }
     }
 
@@ -479,7 +496,7 @@ mod tests {
     #[test]
     fn test_convert_mysql_value_time_with_days() {
         let result = convert_mysql_value_to_json(Some(Value::Time(false, 2, 10, 30, 0, 0)));
-        // 2 days * 24 hours + 10 hours = 58 hours
+        // 2 天 * 24 小时 + 10 小时 = 58 小时
         assert!(matches!(result, JsonValue::Time(s) if s == "58:30:00.000000"));
     }
 

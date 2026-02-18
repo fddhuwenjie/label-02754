@@ -1,43 +1,43 @@
-//! SQL file scanner module.
+//! SQL 文件扫描模块
 //!
-//! Discovers and manages SQL files in a directory tree for execution.
+//! 在目录树中发现和管理待执行的 SQL 文件。
 
 use std::fs;
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 use thiserror::Error;
 
-/// Scanner operation errors.
+/// 扫描器操作错误
 #[derive(Error, Debug)]
 pub enum ScannerError {
-    /// Scan directory does not exist
-    #[error("Directory not found: {0}")]
+    /// 扫描目录不存在
+    #[error("目录未找到: {0}")]
     DirectoryNotFound(String),
-    /// File system I/O error
-    #[error("IO error: {0}")]
+    /// 文件系统 I/O 错误
+    #[error("IO 错误: {0}")]
     IoError(#[from] std::io::Error),
-    /// Failed to read SQL file content
-    #[error("Failed to read SQL file: {0}")]
+    /// 读取 SQL 文件内容失败
+    #[error("读取 SQL 文件失败: {0}")]
     ReadError(String),
 }
 
-/// Represents a discovered SQL file with its metadata.
+/// 表示发现的 SQL 文件及其元数据
 #[derive(Debug, Clone)]
 pub struct SqlFile {
-    /// Absolute path to the SQL file
+    /// SQL 文件的绝对路径
     pub absolute_path: PathBuf,
-    /// Path relative to the scan directory
+    /// 相对于扫描目录的路径
     pub relative_path: String,
-    /// Path where the JSON output will be written
+    /// JSON 输出将被写入的路径
     pub json_path: PathBuf,
 }
 
 impl SqlFile {
-    /// Create a new SqlFile instance.
+    /// 创建新的 SqlFile 实例
     ///
-    /// # Arguments
-    /// * `absolute_path` - Full path to the SQL file
-    /// * `base_dir` - Base directory for calculating relative path
+    /// # 参数
+    /// * `absolute_path` - SQL 文件的完整路径
+    /// * `base_dir` - 用于计算相对路径的基础目录
     pub fn new(absolute_path: PathBuf, base_dir: &Path) -> Self {
         let relative_path = absolute_path
             .strip_prefix(base_dir)
@@ -54,18 +54,18 @@ impl SqlFile {
         }
     }
 
-    /// Read the SQL file content.
+    /// 读取 SQL 文件内容
     pub fn read_content(&self) -> Result<String, ScannerError> {
         fs::read_to_string(&self.absolute_path)
             .map_err(|e| ScannerError::ReadError(format!("{}: {}", self.absolute_path.display(), e)))
     }
 
-    /// Check if the corresponding JSON output file exists.
+    /// 检查对应的 JSON 输出文件是否存在
     pub fn json_exists(&self) -> bool {
         self.json_path.exists()
     }
 
-    /// Get the last modified time of the JSON output file.
+    /// 获取 JSON 输出文件的最后修改时间
     pub fn json_modified_time(&self) -> Option<std::time::SystemTime> {
         fs::metadata(&self.json_path)
             .ok()
@@ -73,16 +73,16 @@ impl SqlFile {
     }
 }
 
-/// SQL file directory scanner.
+/// SQL 文件目录扫描器
 pub struct Scanner {
     base_directory: PathBuf,
 }
 
 impl Scanner {
-    /// Create a new scanner for the specified directory.
+    /// 为指定目录创建新的扫描器
     ///
-    /// # Arguments
-    /// * `base_directory` - Directory to scan for SQL files
+    /// # 参数
+    /// * `base_directory` - 要扫描 SQL 文件的目录
     pub fn new<P: AsRef<Path>>(base_directory: P) -> Result<Self, ScannerError> {
         let base_directory = base_directory.as_ref().to_path_buf();
         if !base_directory.exists() {
@@ -93,9 +93,9 @@ impl Scanner {
         Ok(Self { base_directory })
     }
 
-    /// Scan the directory tree for SQL files.
+    /// 扫描目录树中的 SQL 文件
     ///
-    /// Recursively finds all `.sql` files in the base directory and subdirectories.
+    /// 递归查找基础目录及子目录中的所有 `.sql` 文件。
     pub fn scan(&self) -> Result<Vec<SqlFile>, ScannerError> {
         let mut sql_files = Vec::new();
 
@@ -134,12 +134,12 @@ mod tests {
         let sql_dir = dir.path().join("sql");
         fs::create_dir_all(&sql_dir).unwrap();
         
-        // Create test SQL files
+        // 创建测试 SQL 文件
         fs::write(sql_dir.join("test1.sql"), "SELECT 1").unwrap();
         fs::write(sql_dir.join("test2.SQL"), "SELECT 2").unwrap();
         fs::write(sql_dir.join("not_sql.txt"), "not sql").unwrap();
         
-        // Create subdirectory with SQL file
+        // 创建包含 SQL 文件的子目录
         let sub_dir = sql_dir.join("subdir");
         fs::create_dir_all(&sub_dir).unwrap();
         fs::write(sub_dir.join("test3.sql"), "SELECT 3").unwrap();

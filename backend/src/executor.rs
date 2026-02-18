@@ -1,7 +1,7 @@
-//! SQL file execution orchestrator.
+//! SQL 文件执行协调器
 //!
-//! This module coordinates the scanning, execution, and result writing
-//! of SQL files with support for concurrent processing and interval-based skipping.
+//! 本模块协调 SQL 文件的扫描、执行和结果写入，
+//! 支持并发处理和基于间隔的跳过。
 
 use crate::config::Config;
 use crate::database::{DatabaseError, DatabasePool};
@@ -14,40 +14,40 @@ use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime};
 use thiserror::Error;
 
-/// Executor operation errors.
+/// 执行器操作错误
 #[derive(Error, Debug)]
 pub enum ExecutorError {
-    /// Error during file scanning
-    #[error("Scanner error: {0}")]
+    /// 文件扫描错误
+    #[error("扫描器错误: {0}")]
     ScannerError(#[from] ScannerError),
-    /// Database operation error
-    #[error("Database error: {0}")]
+    /// 数据库操作错误
+    #[error("数据库错误: {0}")]
     DatabaseError(#[from] DatabaseError),
-    /// JSON output writing error
-    #[error("JSON writer error: {0}")]
+    /// JSON 输出写入错误
+    #[error("JSON 写入器错误: {0}")]
     JsonWriterError(#[from] JsonWriterError),
-    /// Configuration error
-    #[error("Configuration error: {0}")]
+    /// 配置错误
+    #[error("配置错误: {0}")]
     ConfigError(String),
 }
 
-/// Result of executing a single SQL file.
+/// 单个 SQL 文件的执行结果
 #[derive(Debug, Clone)]
 pub struct ExecutionResult {
-    /// Relative path of the SQL file
+    /// SQL 文件的相对路径
     pub file_path: String,
-    /// Whether execution completed successfully
+    /// 执行是否成功完成
     pub success: bool,
-    /// Error message if execution failed
+    /// 执行失败时的错误信息
     pub error_message: Option<String>,
-    /// Execution duration in milliseconds
+    /// 执行时长（毫秒）
     #[allow(dead_code)]
     pub execution_time_ms: u64,
-    /// Whether the JSON output file was updated
+    /// JSON 输出文件是否已更新
     pub json_updated: bool,
 }
 
-/// Main executor for processing SQL files.
+/// 处理 SQL 文件的主执行器
 pub struct Executor {
     config: Config,
     pool: DatabasePool,
@@ -55,14 +55,14 @@ pub struct Executor {
 }
 
 impl Executor {
-    /// Create a new executor with the given configuration.
+    /// 使用给定配置创建新的执行器
     ///
-    /// # Arguments
-    /// * `config` - Application configuration
+    /// # 参数
+    /// * `config` - 应用配置
     ///
-    /// # Returns
-    /// * `Ok(Executor)` - Successfully created executor
-    /// * `Err(ExecutorError)` - Failed to initialize database pool
+    /// # 返回值
+    /// * `Ok(Executor)` - 成功创建的执行器
+    /// * `Err(ExecutorError)` - 初始化数据库池失败
     pub fn new(config: Config) -> Result<Self, ExecutorError> {
         let pool = DatabasePool::new(&config.database)?;
         Ok(Self {
@@ -72,27 +72,27 @@ impl Executor {
         })
     }
 
-    /// Execute all SQL files in the configured scan directory.
+    /// 执行配置扫描目录中的所有 SQL 文件
     ///
-    /// Files are processed concurrently up to `max_concurrent_files`.
-    /// Files with configured intervals are skipped if within the interval period.
+    /// 文件将并发处理，最大并发数为 `max_concurrent_files`。
+    /// 配置了间隔的文件如果在间隔期内将被跳过。
     ///
-    /// # Returns
-    /// * `Ok(Vec<ExecutionResult>)` - Results for all processed files
-    /// * `Err(ExecutorError)` - Fatal error during execution
+    /// # 返回值
+    /// * `Ok(Vec<ExecutionResult>)` - 所有处理文件的结果
+    /// * `Err(ExecutorError)` - 执行过程中的致命错误
     pub fn run(&self) -> Result<Vec<ExecutionResult>, ExecutorError> {
         let scanner = Scanner::new(&self.config.execution.scan_directory)?;
         let sql_files = scanner.scan()?;
 
-        info!("Found {} SQL files to process", sql_files.len());
+        info!("找到 {} 个 SQL 文件待处理", sql_files.len());
 
-        // Configure thread pool
+        // 配置线程池
         let pool = rayon::ThreadPoolBuilder::new()
             .num_threads(self.config.execution.max_concurrent_files)
             .build()
             .map_err(|e| ExecutorError::ConfigError(e.to_string()))?;
 
-        // Process files in parallel
+        // 并行处理文件
         pool.install(|| {
             sql_files.par_iter().for_each(|sql_file| {
                 let result = self.process_file(sql_file);
@@ -102,11 +102,11 @@ impl Executor {
 
         let results = self.results.lock().clone();
         
-        // Log summary
+        // 记录摘要
         let success_count = results.iter().filter(|r| r.success).count();
         let updated_count = results.iter().filter(|r| r.json_updated).count();
         info!(
-            "Execution complete: {}/{} successful, {} JSON files updated",
+            "执行完成: {}/{} 成功, {} 个 JSON 文件已更新",
             success_count,
             results.len(),
             updated_count
@@ -119,11 +119,11 @@ impl Executor {
         let start_time = Instant::now();
         let relative_path = &sql_file.relative_path;
 
-        info!("Processing: {}", relative_path);
+        info!("正在处理: {}", relative_path);
 
-        // Check if we should skip based on interval
+        // 检查是否应该基于间隔跳过
         if self.should_skip_file(sql_file) {
-            info!("Skipping {} - within interval period", relative_path);
+            info!("跳过 {} - 在间隔期内", relative_path);
             return ExecutionResult {
                 file_path: relative_path.clone(),
                 success: true,
@@ -133,11 +133,11 @@ impl Executor {
             };
         }
 
-        // Read SQL content
+        // 读取 SQL 内容
         let sql_content = match sql_file.read_content() {
             Ok(content) => content,
             Err(e) => {
-                error!("Failed to read {}: {}", relative_path, e);
+                error!("读取 {} 失败: {}", relative_path, e);
                 return ExecutionResult {
                     file_path: relative_path.clone(),
                     success: false,
@@ -148,11 +148,11 @@ impl Executor {
             }
         };
 
-        // Execute SQL
+        // 执行 SQL
         let results = match self.pool.execute_sql(&sql_content) {
             Ok(results) => results,
             Err(e) => {
-                error!("SQL execution failed for {}: {}", relative_path, e);
+                error!("{} 的 SQL 执行失败: {}", relative_path, e);
                 return ExecutionResult {
                     file_path: relative_path.clone(),
                     success: false,
@@ -165,7 +165,7 @@ impl Executor {
 
         let execution_time_ms = start_time.elapsed().as_millis() as u64;
 
-        // Write JSON results
+        // 写入 JSON 结果
         match JsonWriter::write_results(
             &sql_file.json_path,
             &results,
@@ -174,7 +174,7 @@ impl Executor {
         ) {
             Ok(_) => {
                 info!(
-                    "Successfully processed {} -> {} ({} ms)",
+                    "成功处理 {} -> {} ({} ms)",
                     relative_path,
                     sql_file.json_path.display(),
                     execution_time_ms
@@ -188,7 +188,7 @@ impl Executor {
                 }
             }
             Err(e) => {
-                error!("Failed to write JSON for {}: {}", relative_path, e);
+                error!("写入 {} 的 JSON 失败: {}", relative_path, e);
                 ExecutionResult {
                     file_path: relative_path.clone(),
                     success: false,
@@ -201,28 +201,28 @@ impl Executor {
     }
 
     fn should_skip_file(&self, sql_file: &SqlFile) -> bool {
-        // If JSON doesn't exist, never skip
+        // 如果 JSON 不存在，永不跳过
         if !sql_file.json_exists() {
             return false;
         }
 
-        // Check if there's an interval configured for this file
+        // 检查是否为此文件配置了间隔
         let interval_minutes = match self.config.get_interval_for_file(&sql_file.relative_path) {
             Some(interval) => interval,
-            None => return false, // No interval configured, always update
+            None => return false, // 未配置间隔，始终更新
         };
 
-        // Get JSON file's last modified time
+        // 获取 JSON 文件的最后修改时间
         let json_modified = match sql_file.json_modified_time() {
             Some(time) => time,
-            None => return false, // Can't determine time, don't skip
+            None => return false, // 无法确定时间，不跳过
         };
 
-        // Calculate if we're within the interval
+        // 计算是否在间隔期内
         let now = SystemTime::now();
         let elapsed = match now.duration_since(json_modified) {
             Ok(duration) => duration,
-            Err(_) => return false, // Time went backwards, don't skip
+            Err(_) => return false, // 时间倒退，不跳过
         };
 
         let interval_duration = Duration::from_secs(interval_minutes * 60);
@@ -296,14 +296,14 @@ mod tests {
         let result = ExecutionResult {
             file_path: "test.sql".to_string(),
             success: false,
-            error_message: Some("Connection failed".to_string()),
+            error_message: Some("连接失败".to_string()),
             execution_time_ms: 50,
             json_updated: false,
         };
 
         assert!(!result.success);
         assert!(!result.json_updated);
-        assert_eq!(result.error_message, Some("Connection failed".to_string()));
+        assert_eq!(result.error_message, Some("连接失败".to_string()));
     }
 
     #[test]
@@ -317,7 +317,7 @@ mod tests {
         };
 
         assert!(result.success);
-        assert!(!result.json_updated); // Skipped due to interval
+        assert!(!result.json_updated); // 因间隔而跳过
     }
 
     #[test]
@@ -345,8 +345,8 @@ mod tests {
     fn test_executor_new_with_invalid_directory() {
         let config = create_test_config("/nonexistent/directory/path");
         let result = Executor::new(config);
-        // This will fail at database connection, not directory check
-        // Directory check happens during run()
+        // 这会在数据库连接时失败，而不是目录检查
+        // 目录检查在 run() 时发生
         assert!(result.is_err());
     }
 
@@ -358,7 +358,7 @@ mod tests {
 
         let sql_file = SqlFile::new(sql_path, dir.path());
 
-        // Without JSON file, should never skip
+        // 没有 JSON 文件时，永不跳过
         assert!(!sql_file.json_exists());
     }
 
@@ -373,7 +373,7 @@ mod tests {
 
         let sql_file = SqlFile::new(sql_path, dir.path());
 
-        // JSON exists
+        // JSON 存在
         assert!(sql_file.json_exists());
         assert!(sql_file.json_modified_time().is_some());
     }
@@ -393,10 +393,10 @@ mod tests {
 
     #[test]
     fn test_executor_error_display() {
-        let err = ExecutorError::ConfigError("Invalid config".to_string());
-        assert!(err.to_string().contains("Invalid config"));
+        let err = ExecutorError::ConfigError("无效配置".to_string());
+        assert!(err.to_string().contains("无效配置"));
 
         let err = ExecutorError::ScannerError(ScannerError::DirectoryNotFound("/test".to_string()));
-        assert!(err.to_string().contains("Scanner error"));
+        assert!(err.to_string().contains("扫描器错误"));
     }
 }

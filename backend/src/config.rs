@@ -1,7 +1,6 @@
-//! Configuration management module.
+//! 配置管理模块
 //!
-//! Handles loading and parsing of TOML configuration files for database
-//! connection settings and execution parameters.
+//! 处理 TOML 配置文件的加载和解析，包括数据库连接设置和执行参数。
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -9,37 +8,37 @@ use std::fs;
 use std::path::Path;
 use thiserror::Error;
 
-/// Configuration loading errors.
+/// 配置加载错误
 #[derive(Error, Debug)]
 pub enum ConfigError {
-    /// Failed to read configuration file from disk
-    #[error("Failed to read config file: {0}")]
+    /// 从磁盘读取配置文件失败
+    #[error("读取配置文件失败: {0}")]
     ReadError(#[from] std::io::Error),
-    /// Invalid TOML syntax in configuration file
-    #[error("Failed to parse config file: {0}")]
+    /// 配置文件中存在无效的 TOML 语法
+    #[error("解析配置文件失败: {0}")]
     ParseError(#[from] toml::de::Error),
-    /// Configuration file does not exist at specified path
-    #[error("Config file not found at: {0}")]
+    /// 指定路径的配置文件不存在
+    #[error("配置文件未找到: {0}")]
     NotFound(String),
 }
 
-/// Database connection configuration.
+/// 数据库连接配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DatabaseConfig {
-    /// MySQL server hostname or IP address
+    /// MySQL 服务器主机名或 IP 地址
     pub host: String,
-    /// MySQL server port (default: 3306)
+    /// MySQL 服务器端口（默认：3306）
     pub port: u16,
-    /// Database username
+    /// 数据库用户名
     pub username: String,
-    /// Database password
+    /// 数据库密码
     pub password: String,
-    /// Database name to connect to
+    /// 要连接的数据库名称
     pub database: String,
-    /// Connection pool size (default: 10)
+    /// 连接池大小（默认：10）
     #[serde(default = "default_pool_size")]
     pub pool_size: u32,
-    /// Query timeout in seconds (default: 300)
+    /// 查询超时时间（秒）（默认：300）
     #[serde(default = "default_timeout")]
     pub timeout_seconds: u64,
 }
@@ -52,15 +51,15 @@ fn default_timeout() -> u64 {
     300
 }
 
-/// SQL file execution configuration.
+/// SQL 文件执行配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExecutionConfig {
-    /// Directory to scan for SQL files
+    /// 扫描 SQL 文件的目录
     pub scan_directory: String,
-    /// Maximum number of files to process concurrently (default: 4)
+    /// 最大并发处理文件数（默认：4）
     #[serde(default = "default_max_concurrent")]
     pub max_concurrent_files: usize,
-    /// Per-file execution intervals in minutes (file path -> interval)
+    /// 按文件配置的执行间隔（分钟）（文件路径 -> 间隔）
     #[serde(default)]
     pub file_intervals: HashMap<String, u64>,
 }
@@ -69,24 +68,24 @@ fn default_max_concurrent() -> usize {
     4
 }
 
-/// Application configuration.
+/// 应用配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
-    /// Database connection settings
+    /// 数据库连接设置
     pub database: DatabaseConfig,
-    /// Execution behavior settings
+    /// 执行行为设置
     pub execution: ExecutionConfig,
 }
 
 impl Config {
-    /// Load configuration from a TOML file.
+    /// 从 TOML 文件加载配置
     ///
-    /// # Arguments
-    /// * `path` - Path to the configuration file
+    /// # 参数
+    /// * `path` - 配置文件路径
     ///
-    /// # Returns
-    /// * `Ok(Config)` - Successfully loaded configuration
-    /// * `Err(ConfigError)` - Failed to load or parse configuration
+    /// # 返回值
+    /// * `Ok(Config)` - 成功加载的配置
+    /// * `Err(ConfigError)` - 加载或解析配置失败
     pub fn load<P: AsRef<Path>>(path: P) -> Result<Self, ConfigError> {
         let path = path.as_ref();
         if !path.exists() {
@@ -97,22 +96,22 @@ impl Config {
         Ok(config)
     }
 
-    /// Get the configured execution interval for a specific file.
+    /// 获取指定文件的配置执行间隔
     ///
-    /// # Arguments
-    /// * `relative_path` - Relative path of the SQL file
+    /// # 参数
+    /// * `relative_path` - SQL 文件的相对路径
     ///
-    /// # Returns
-    /// * `Some(minutes)` - Configured interval in minutes
-    /// * `None` - No interval configured (always execute)
+    /// # 返回值
+    /// * `Some(minutes)` - 配置的间隔（分钟）
+    /// * `None` - 未配置间隔（始终执行）
     pub fn get_interval_for_file(&self, relative_path: &str) -> Option<u64> {
         self.execution.file_intervals.get(relative_path).copied()
     }
 
-    /// Create a default configuration file at the specified path.
+    /// 在指定路径创建默认配置文件
     ///
-    /// # Arguments
-    /// * `path` - Path where the configuration file will be created
+    /// # 参数
+    /// * `path` - 配置文件将被创建的路径
     pub fn create_default_config<P: AsRef<Path>>(path: P) -> Result<(), std::io::Error> {
         let default_config = Config {
             database: DatabaseConfig {
@@ -131,7 +130,7 @@ impl Config {
             },
         };
         let content = toml::to_string_pretty(&default_config)
-            .expect("Failed to serialize default config");
+            .expect("序列化默认配置失败");
         fs::write(path, content)
     }
 }
@@ -209,7 +208,7 @@ max_concurrent_files = 4
         let dir = tempdir().unwrap();
         let config_path = dir.path().join("minimal.toml");
         
-        // Minimal config without optional fields
+        // 不包含可选字段的最小配置
         let config_content = r#"
 [database]
 host = "localhost"
@@ -225,7 +224,7 @@ scan_directory = "./sql"
         
         let config = Config::load(&config_path).unwrap();
         
-        // Check default values
+        // 检查默认值
         assert_eq!(config.database.pool_size, 10);
         assert_eq!(config.database.timeout_seconds, 300);
         assert_eq!(config.execution.max_concurrent_files, 4);

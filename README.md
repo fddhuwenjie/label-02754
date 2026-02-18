@@ -1,197 +1,281 @@
 # MySQL Executor
 
-A Rust-based application that scans and executes MySQL files (.sql), generating JSON result files with comprehensive metadata.
+一个基于 Rust 的应用程序，用于扫描和执行 MySQL 文件（.sql），并生成包含完整元数据的 JSON 结果文件。
 
-## How to Run
+## 运行方式
 
-### Docker (Recommended)
+### 快速开始（推荐）
 
-1. Clone the repository and navigate to the project directory
+使用一键脚本自动安装依赖、构建和测试：
 
-2. Start all services:
+```bash
+# macOS / Linux
+./run.sh
+
+# Windows
+run.bat
+```
+
+脚本支持的命令：
+
+| 命令 | 说明 |
+|------|------|
+| `./run.sh` | 默认：自动构建 + 运行测试 |
+| `./run.sh install` | 安装所有依赖（Rust、Docker） |
+| `./run.sh build` | 仅构建项目 |
+| `./run.sh test` | 仅运行测试 |
+| `./run.sh docker` | 使用 Docker Compose 启动服务 |
+| `./run.sh local` | 本地运行（需配置数据库） |
+| `./run.sh stop` | 停止 Docker 服务 |
+| `./run.sh logs` | 查看 Docker 日志 |
+| `./run.sh clean` | 清理构建产物 |
+| `./run.sh help` | 显示帮助信息 |
+
+脚本会自动检测操作系统和包管理器，缺失的依赖会自动安装。
+
+### Docker
+
+1. 克隆仓库并进入项目目录
+
+2. 启动所有服务：
 ```bash
 docker-compose up --build -d
 ```
 
-3. Check service status:
+3. 查看服务状态：
 ```bash
 docker-compose ps
 ```
 
-4. View logs:
+4. 查看日志：
 ```bash
 docker-compose logs -f mysql-executor
 ```
 
-5. Stop services:
+5. 停止服务：
 ```bash
 docker-compose down
 ```
 
-6. Stop and remove volumes:
+6. 停止并删除数据卷：
 ```bash
 docker-compose down -v
 ```
 
-### Local Development
+### 本地开发
 
-1. Install Rust (1.75+):
+1. 安装 Rust（1.75+）：
 ```bash
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
 
-2. Install MySQL 8.0+ and create a database
+2. 安装 MySQL 8.0+ 并创建数据库
 
-3. Configure the application:
+3. 配置应用：
 ```bash
 cp config/config.toml.example config/config.toml
-# Edit config/config.toml with your database settings
+# 编辑 config/config.toml，填入你的数据库配置
 ```
 
-4. Build and run:
+4. 构建并运行：
 ```bash
 cd backend
 cargo build --release
 ./target/release/mysql-executor
 ```
 
-Or run directly:
+或直接运行：
 ```bash
 cd backend
 cargo run --release
 ```
 
-Environment variables:
-- `MYSQL_EXECUTOR_CONFIG`: Path to config file (default: `config/config.toml`)
-- `RUST_LOG`: Log level (default: `info`)
+环境变量：
+- `MYSQL_EXECUTOR_CONFIG`：配置文件路径（默认：`config/config.toml`）
+- `RUST_LOG`：日志级别（默认：`info`）
 
-### Configuration Path Notes
+### 配置路径说明
 
-| Environment | Default Config Path | Notes |
-|-------------|---------------------|-------|
-| Local Development | `config/config.toml` | Relative to working directory |
-| Docker Container | `/app/config/config.toml` | Set via `MYSQL_EXECUTOR_CONFIG` env var |
+| 环境 | 默认配置路径 | 说明 |
+|------|-------------|------|
+| 本地开发 | `config/config.toml` | 相对于工作目录 |
+| Docker 容器 | `/app/config/config.toml` | 通过 `MYSQL_EXECUTOR_CONFIG` 环境变量设置 |
 
-When running locally, ensure you're in the project root directory, or set `MYSQL_EXECUTOR_CONFIG` to the absolute path of your config file.
+本地运行时，请确保在项目根目录下，或设置 `MYSQL_EXECUTOR_CONFIG` 为配置文件的绝对路径。
 
-## Services
+## 服务列表
 
-| Service | Description | Port |
-|---------|-------------|------|
-| mysql | MySQL 8.0 Database | 3754 (external) / 3306 (internal) |
-| mysql-executor | Rust SQL Executor Application | N/A (batch process) |
+| 服务 | 描述 | 端口 |
+|------|------|------|
+| mysql | MySQL 8.0 数据库 | 3754（外部）/ 3306（内部） |
+| mysql-executor | Rust SQL 执行器应用 | 无（批处理进程） |
 
-### Service Details
+### 服务详情
 
-**MySQL Database**
-- Image: mysql:8.0
-- Character Set: utf8mb4
-- Collation: utf8mb4_unicode_ci
-- Health check enabled
-- Persistent volume for data
+**MySQL 数据库**
+- 镜像：mysql:8.0
+- 字符集：utf8mb4
+- 排序规则：utf8mb4_unicode_ci
+- 已启用健康检查
+- 数据持久化存储
 
 **MySQL Executor**
-- Cross-platform support (ARM64 & AMD64)
-- Concurrent SQL file processing
-- Atomic JSON file writes
-- Connection pooling
+- 跨平台支持（ARM64 & AMD64）
+- 并发 SQL 文件处理
+- 原子性 JSON 文件写入
+- 连接池管理
 
-## Test Accounts
+## 测试账号
 
-### MySQL Database
+### MySQL 数据库
 
-| Username | Password | Database | Description |
-|----------|----------|----------|-------------|
-| root | rootpassword | - | Root administrator |
-| executor | executorpass | testdb | Application user |
+| 用户名 | 密码 | 数据库 | 描述 |
+|--------|------|--------|------|
+| root | rootpassword | - | 超级管理员 |
+| executor | executorpass | testdb | 应用用户 |
 
-### Connection Examples
+### 连接示例
 
-**MySQL CLI:**
+**MySQL CLI：**
 ```bash
 mysql -h 127.0.0.1 -P 3754 -u executor -pexecutorpass testdb
 ```
 
-**Docker exec:**
+**Docker exec：**
 ```bash
 docker exec -it mysql-executor-db mysql -u executor -pexecutorpass testdb
 ```
 
-## Requirements
+## 题目内容
 
-### Functional Requirements
+开发一个基于Rust语言的程序，实现以下详细功能和要求： 
 
-1. **File Processing & Execution**
-   - Scan and execute all .sql files in configured directory and subdirectories
-   - Generate JSON result files with same name (e.g., query.sql → query.json)
-   - Maintain directory structure for output files
+1. 文件处理与执行功能： 
+- 程序需扫描并执行其所在目录及所有子目录中的MySQL文件（.sql扩展名） 
+- 对每个执行成功的MySQL文件，生成一个同名的JSON结果文件（例如：query.sql生成query.json） 
+- 确保JSON文件与源MySQL文件保持相同的目录结构和相对路径 
 
-2. **SQL Compatibility**
-   - Full support for SQL comments (-- and /* */)
-   - WITH statements and CTE (Common Table Expressions)
-   - Multiple result sets
-   - Stored procedures and functions
+2. SQL兼容性要求： 
+- 完全支持标准SQL注释（单行注释--和多行注释/* */） 
+- 兼容WITH语句和公共表表达式(CTE)语法 
+- 正确处理多表结果集返回场景 
+- 支持存储过程、函数调用及复杂查询语句的执行 
 
-3. **Configuration Management**
-   - TOML configuration file
-   - Database connection settings (host, port, username, password, database)
-   - Scan directory path
-   - Per-file generation intervals (in minutes)
+3. 配置文件管理： 
+- 在程序根目录下创建并读取配置文件（推荐使用.toml或.json格式） 
+- 配置文件必须包含：MySQL数据库连接信息（主机地址、端口号、用户名、密码、默认数据库名） 
+- 配置文件需指定程序扫描和执行MySQL文件的起始目录路径 
+- 配置文件应支持为每个MySQL文件单独定义JSON生成间隔时间（以分钟为单位） 
 
-4. **Execution Strategy**
-   - Without interval: Update JSON on every run
-   - With interval: Update only if elapsed time exceeds interval
-   - Missing JSON: Always generate immediately
-   - Time based on JSON file's last modified timestamp
+4. 执行策略与文件更新机制： 
+- 当配置文件中未定义特定MySQL文件的生成间隔时，每次程序运行都覆盖更新对应的JSON文件 
+- 当配置文件中定义了生成间隔时，仅当距离上次生成时间超过间隔时间才更新JSON文件 
+- 若目标JSON文件不存在，无论是否定义生成间隔，均立即执行MySQL文件并生成JSON文件 
+- 所有时间判断需基于JSON文件的最后修改时间戳 
 
-5. **Error Handling**
-   - Comprehensive error capture (connection, syntax, timeout, permissions)
-   - Preserve existing JSON on errors
-   - Detailed error logging
+5. 错误处理与故障恢复： 
+- 实现全面的错误捕获机制，包括MySQL连接错误、SQL语法错误、执行超时、权限不足等 
+- 当MySQL执行过程中出现任何错误或异常时，保持原有JSON文件不变，不进行任何更新操作 
+- 程序需记录详细错误日志，包括错误类型、发生时间、涉及的MySQL文件路径及具体错误信息 
 
-6. **Concurrency & Atomicity**
-   - Thread-safe file processing
-   - Atomic JSON writes (temp file + rename)
-   - File locking mechanism
-   - Crash-safe operations
+6. 并发控制与原子操作： 
+- 实现并发安全的文件处理机制，支持多线程同时处理不同目录的MySQL文件 
+- 采用原子更新策略处理JSON文件：先写入临时文件，验证无误后再原子性替换目标文件 
+- 实现文件锁定机制，防止多个进程或线程同时操作同一文件 
+- 确保在程序崩溃或中断时，已有JSON文件不会出现数据不全或文件破损情况 
 
-7. **JSON Serialization**
-   - Complete MySQL to JSON type mapping
-   - Multiple result set support
-   - Metadata (execution time, MySQL version, affected rows, etc.)
+7. JSON序列化与数据类型处理： 
+- 实现MySQL数据类型到JSON类型的完整映射，包括： 
+* 数值类型（INT, BIGINT, FLOAT, DOUBLE等） 
+* 字符串类型（VARCHAR, TEXT, JSON等） 
+* 日期时间类型（DATE, TIME, DATETIME, TIMESTAMP） 
+* 二进制类型（BLOB, BINARY等） 
+* 特殊类型（ENUM, SET, GEOMETRY等） 
+- 正确处理多表结果集，在JSON中使用清晰的结构区分不同表的结果 
+- 确保生成的JSON文件符合严格的JSON语法规范，可通过JSON格式验证工具检测 
+- 为JSON文件添加元数据信息，包括：执行时间、MySQL版本、受影响行数、结果集数量等 
 
-8. **Performance**
-   - Connection pooling
-   - Configurable concurrency limits
-   - Query timeout mechanism
+8. 性能与资源管理： 
+- 实现数据库连接池管理，优化连接复用 
+- 对大结果集实现流式处理，避免内存溢出 
+- 限制并发执行的MySQL文件数量，防止系统资源耗尽 
+- 实现查询超时机制，避免长时间运行的查询阻塞程序执行 
 
-## Project Structure
+程序开发完成后，需提供完整的单元测试和集成测试，确保所有功能点符合要求，并生成详细的用户使用文档和API说明。
+
+### 功能需求
+
+1. **文件处理与执行**
+   - 扫描并执行配置目录及子目录中的所有 .sql 文件
+   - 生成同名的 JSON 结果文件（如：query.sql → query.json）
+   - 保持输出文件的目录结构
+
+2. **SQL 兼容性**
+   - 完整支持 SQL 注释（-- 和 /* */）
+   - WITH 语句和 CTE（公共表表达式）
+   - 多结果集
+   - 存储过程和函数
+
+3. **配置管理**
+   - TOML 配置文件
+   - 数据库连接设置（主机、端口、用户名、密码、数据库）
+   - 扫描目录路径
+   - 按文件配置生成间隔（分钟）
+
+4. **执行策略**
+   - 无间隔配置：每次运行都更新 JSON
+   - 有间隔配置：仅当超过间隔时间时更新
+   - JSON 不存在：立即生成
+   - 时间基于 JSON 文件的最后修改时间戳
+
+5. **错误处理**
+   - 全面的错误捕获（连接、语法、超时、权限）
+   - 出错时保留现有 JSON
+   - 详细的错误日志
+
+6. **并发与原子性**
+   - 线程安全的文件处理
+   - 原子性 JSON 写入（临时文件 + 重命名）
+   - 文件锁机制
+   - 崩溃安全操作
+
+7. **JSON 序列化**
+   - 完整的 MySQL 到 JSON 类型映射
+   - 多结果集支持
+   - 元数据（执行时间、MySQL 版本、影响行数等）
+
+8. **性能**
+   - 连接池
+   - 可配置的并发限制
+   - 查询超时机制
+
+## 项目结构
 
 ```
 .
-├── backend/                    # Rust application
+├── backend/                    # Rust 应用
 │   ├── src/
-│   │   ├── main.rs            # Entry point
-│   │   ├── config.rs          # Configuration handling
-│   │   ├── database.rs        # MySQL connection & execution
-│   │   ├── executor.rs        # Main execution logic
-│   │   ├── json_writer.rs     # JSON output handling
-│   │   └── scanner.rs         # SQL file discovery
-│   ├── Cargo.toml             # Rust dependencies
-│   └── Dockerfile             # Multi-arch Docker build
-├── config/                     # Configuration files
-│   ├── config.toml            # Active configuration
-│   └── config.toml.example    # Configuration template
-├── sql/                        # SQL files to execute
-│   ├── example_queries/       # Example queries
-│   └── reports/               # Report queries
-├── init-db/                    # MySQL initialization scripts
-├── docker-compose.yml          # Docker Compose configuration
-├── .gitignore                  # Git ignore rules
-└── README.md                   # This file
+│   │   ├── main.rs            # 入口点
+│   │   ├── config.rs          # 配置处理
+│   │   ├── database.rs        # MySQL 连接与执行
+│   │   ├── executor.rs        # 主执行逻辑
+│   │   ├── json_writer.rs     # JSON 输出处理
+│   │   └── scanner.rs         # SQL 文件发现
+│   ├── Cargo.toml             # Rust 依赖
+│   └── Dockerfile             # 多架构 Docker 构建
+├── config/                     # 配置文件
+│   ├── config.toml            # 当前配置
+│   └── config.toml.example    # 配置模板
+├── sql/                        # 待执行的 SQL 文件
+│   ├── example_queries/       # 示例查询
+│   └── reports/               # 报表查询
+├── init-db/                    # MySQL 初始化脚本
+├── docker-compose.yml          # Docker Compose 配置
+├── .gitignore                  # Git 忽略规则
+└── README.md                   # 本文件
 ```
 
-## Configuration
+## 配置说明
 
 ### config.toml
 
@@ -210,10 +294,10 @@ scan_directory = "/app/sql"
 max_concurrent_files = 4
 
 [execution.file_intervals]
-# "reports/daily_summary.sql" = 1440  # Once per day
+# "reports/daily_summary.sql" = 1440  # 每天一次
 ```
 
-## JSON Output Format
+## JSON 输出格式
 
 ```json
 {
@@ -241,59 +325,59 @@ max_concurrent_files = 4
 }
 ```
 
-## Data Type Mapping
+## 数据类型映射
 
-| MySQL Type | JSON Type |
+| MySQL 类型 | JSON 类型 |
 |------------|-----------|
-| INT, BIGINT | number (integer) |
-| FLOAT, DOUBLE, DECIMAL | number (float) |
+| INT, BIGINT | number（整数） |
+| FLOAT, DOUBLE, DECIMAL | number（浮点数） |
 | VARCHAR, TEXT, CHAR | string |
-| DATE | string (YYYY-MM-DD) |
-| TIME | string (HH:MM:SS.ffffff) |
-| DATETIME, TIMESTAMP | string (YYYY-MM-DD HH:MM:SS.ffffff) |
-| BLOB, BINARY | string (base64 encoded) |
-| JSON | string (JSON string) |
+| DATE | string（YYYY-MM-DD） |
+| TIME | string（HH:MM:SS.ffffff） |
+| DATETIME, TIMESTAMP | string（YYYY-MM-DD HH:MM:SS.ffffff） |
+| BLOB, BINARY | string（base64 编码） |
+| JSON | string（JSON 字符串） |
 | ENUM, SET | string |
 | NULL | null |
 
-## API Reference
+## API 参考
 
-### Command Line
+### 命令行
 
 ```bash
-# Run with default config (config.toml)
+# 使用默认配置运行（config.toml）
 mysql-executor
 
-# Run with custom config
+# 使用自定义配置运行
 mysql-executor /path/to/config.toml
 
-# Run with environment variable
+# 使用环境变量运行
 MYSQL_EXECUTOR_CONFIG=/path/to/config.toml mysql-executor
 ```
 
-### Environment Variables
+### 环境变量
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| MYSQL_EXECUTOR_CONFIG | Path to configuration file | config/config.toml |
-| RUST_LOG | Log level (error, warn, info, debug, trace) | info |
+| 变量 | 描述 | 默认值 |
+|------|------|--------|
+| MYSQL_EXECUTOR_CONFIG | 配置文件路径 | config/config.toml |
+| RUST_LOG | 日志级别（error, warn, info, debug, trace） | info |
 
-### Library API
+### 库 API
 
-The application can also be used as a library:
+本应用也可作为库使用：
 
 ```rust
 use mysql_executor::config::Config;
 use mysql_executor::executor::Executor;
 
-// Load configuration
+// 加载配置
 let config = Config::load("config.toml")?;
 
-// Create and run executor
+// 创建并运行执行器
 let executor = Executor::new(config)?;
 let results = executor.run()?;
 
-// Process results
+// 处理结果
 for result in results {
     println!("{}: success={}, updated={}", 
         result.file_path, 
@@ -303,268 +387,268 @@ for result in results {
 }
 ```
 
-### Module Reference
+### 模块参考
 
-#### `config` Module
+#### `config` 模块
 
-| Type | Description |
-|------|-------------|
-| `Config` | Main configuration struct |
-| `DatabaseConfig` | Database connection settings |
-| `ExecutionConfig` | Execution behavior settings |
-| `ConfigError` | Configuration error types |
+| 类型 | 描述 |
+|------|------|
+| `Config` | 主配置结构体 |
+| `DatabaseConfig` | 数据库连接设置 |
+| `ExecutionConfig` | 执行行为设置 |
+| `ConfigError` | 配置错误类型 |
 
-Key methods:
-- `Config::load(path)` - Load configuration from TOML file
-- `Config::create_default_config(path)` - Create default config file
-- `Config::get_interval_for_file(path)` - Get configured interval for a file
+主要方法：
+- `Config::load(path)` - 从 TOML 文件加载配置
+- `Config::create_default_config(path)` - 创建默认配置文件
+- `Config::get_interval_for_file(path)` - 获取文件的配置间隔
 
-#### `database` Module
+#### `database` 模块
 
-| Type | Description |
-|------|-------------|
-| `DatabasePool` | Connection pool manager |
-| `QueryResults` | SQL execution results |
-| `ResultSet` | Single result set data |
-| `ColumnInfo` | Column metadata |
-| `JsonValue` | MySQL to JSON value wrapper |
-| `DatabaseError` | Database error types |
+| 类型 | 描述 |
+|------|------|
+| `DatabasePool` | 连接池管理器 |
+| `QueryResults` | SQL 执行结果 |
+| `ResultSet` | 单个结果集数据 |
+| `ColumnInfo` | 列元数据 |
+| `JsonValue` | MySQL 到 JSON 值包装器 |
+| `DatabaseError` | 数据库错误类型 |
 
-Key methods:
-- `DatabasePool::new(config)` - Create new connection pool
-- `DatabasePool::execute_sql(sql)` - Execute SQL and return results
-- `DatabasePool::get_connection()` - Get pooled connection
+主要方法：
+- `DatabasePool::new(config)` - 创建新连接池
+- `DatabasePool::execute_sql(sql)` - 执行 SQL 并返回结果
+- `DatabasePool::get_connection()` - 获取池化连接
 
-#### `executor` Module
+#### `executor` 模块
 
-| Type | Description |
-|------|-------------|
-| `Executor` | Main execution orchestrator |
-| `ExecutionResult` | Per-file execution result |
-| `ExecutorError` | Executor error types |
+| 类型 | 描述 |
+|------|------|
+| `Executor` | 主执行协调器 |
+| `ExecutionResult` | 单文件执行结果 |
+| `ExecutorError` | 执行器错误类型 |
 
-Key methods:
-- `Executor::new(config)` - Create new executor
-- `Executor::run()` - Execute all SQL files
+主要方法：
+- `Executor::new(config)` - 创建新执行器
+- `Executor::run()` - 执行所有 SQL 文件
 
-#### `scanner` Module
+#### `scanner` 模块
 
-| Type | Description |
-|------|-------------|
-| `Scanner` | SQL file discovery |
-| `SqlFile` | SQL file metadata |
-| `ScannerError` | Scanner error types |
+| 类型 | 描述 |
+|------|------|
+| `Scanner` | SQL 文件发现器 |
+| `SqlFile` | SQL 文件元数据 |
+| `ScannerError` | 扫描器错误类型 |
 
-Key methods:
-- `Scanner::new(directory)` - Create scanner for directory
-- `Scanner::scan()` - Find all SQL files
-- `SqlFile::read_content()` - Read SQL file content
-- `SqlFile::json_exists()` - Check if JSON output exists
+主要方法：
+- `Scanner::new(directory)` - 为目录创建扫描器
+- `Scanner::scan()` - 查找所有 SQL 文件
+- `SqlFile::read_content()` - 读取 SQL 文件内容
+- `SqlFile::json_exists()` - 检查 JSON 输出是否存在
 
-#### `json_writer` Module
+#### `json_writer` 模块
 
-| Type | Description |
-|------|-------------|
-| `JsonWriter` | JSON output handler |
-| `JsonOutput` | Complete JSON structure |
-| `JsonMetadata` | Execution metadata |
-| `JsonResultSet` | Result set in JSON format |
-| `JsonWriterError` | Writer error types |
+| 类型 | 描述 |
+|------|------|
+| `JsonWriter` | JSON 输出处理器 |
+| `JsonOutput` | 完整 JSON 结构 |
+| `JsonMetadata` | 执行元数据 |
+| `JsonResultSet` | JSON 格式的结果集 |
+| `JsonWriterError` | 写入器错误类型 |
 
-Key methods:
-- `JsonWriter::write_results(path, results, source, duration)` - Write JSON atomically
+主要方法：
+- `JsonWriter::write_results(path, results, source, duration)` - 原子性写入 JSON
 
-### Error Codes
+### 错误代码
 
-| Error Type | Description |
-|------------|-------------|
-| `ConfigError::NotFound` | Configuration file not found |
-| `ConfigError::ParseError` | Invalid TOML syntax |
-| `DatabaseError::ConnectionError` | Failed to connect to MySQL |
-| `DatabaseError::QueryError` | SQL execution failed |
-| `DatabaseError::PoolError` | Connection pool error |
-| `DatabaseError::AccessDenied` | Insufficient database privileges |
-| `DatabaseError::Timeout` | Query timeout exceeded |
-| `ScannerError::DirectoryNotFound` | Scan directory not found |
-| `ScannerError::ReadError` | Failed to read SQL file |
-| `JsonWriterError::IoError` | File I/O error |
-| `JsonWriterError::LockError` | File lock acquisition failed |
-| `JsonWriterError::AtomicWriteError` | Atomic rename failed |
+| 错误类型 | 描述 |
+|----------|------|
+| `ConfigError::NotFound` | 配置文件未找到 |
+| `ConfigError::ParseError` | 无效的 TOML 语法 |
+| `DatabaseError::ConnectionError` | 无法连接到 MySQL |
+| `DatabaseError::QueryError` | SQL 执行失败 |
+| `DatabaseError::PoolError` | 连接池错误 |
+| `DatabaseError::AccessDenied` | 数据库权限不足 |
+| `DatabaseError::Timeout` | 查询超时 |
+| `ScannerError::DirectoryNotFound` | 扫描目录未找到 |
+| `ScannerError::ReadError` | 读取 SQL 文件失败 |
+| `JsonWriterError::IoError` | 文件 I/O 错误 |
+| `JsonWriterError::LockError` | 文件锁获取失败 |
+| `JsonWriterError::AtomicWriteError` | 原子重命名失败 |
 
-## Testing
+## 测试
 
-### Run Unit Tests
+### 运行单元测试
 
 ```bash
 cd backend
 cargo test
 ```
 
-### Run with Verbose Output
+### 详细输出运行
 
 ```bash
 cd backend
 cargo test -- --nocapture
 ```
 
-### Run Integration Tests
+### 运行集成测试
 
-Integration tests require a running MySQL instance:
+集成测试需要运行中的 MySQL 实例：
 
 ```bash
-# Set environment variables
+# 设置环境变量
 export MYSQL_TEST_HOST=localhost
 export MYSQL_TEST_PORT=3306
 export MYSQL_TEST_USER=root
 export MYSQL_TEST_PASSWORD=password
 export MYSQL_TEST_DATABASE=test
 
-# Run integration tests
+# 运行集成测试
 cd backend
 cargo test --test integration_tests -- --ignored
 ```
 
-Or use Docker:
+或使用 Docker：
 
 ```bash
-# Start MySQL
+# 启动 MySQL
 docker-compose up -d mysql
 
-# Wait for MySQL to be ready
+# 等待 MySQL 就绪
 sleep 30
 
-# Run integration tests
+# 运行集成测试
 docker exec mysql-executor-db mysql -u root -prootpassword -e "CREATE DATABASE IF NOT EXISTS test"
 cd backend
 MYSQL_TEST_HOST=127.0.0.1 MYSQL_TEST_PORT=3754 MYSQL_TEST_USER=root MYSQL_TEST_PASSWORD=rootpassword MYSQL_TEST_DATABASE=test cargo test --test integration_tests -- --ignored
 ```
 
-### Test Coverage
+### 测试覆盖
 
-The test suite covers:
+测试套件覆盖：
 
-- Configuration loading and validation
-- Database connection and pooling
-- SQL execution (simple queries, CTEs, multiple result sets)
-- Data type conversion (all MySQL types)
-- JSON serialization and atomic writes
-- File scanning and directory traversal
-- Concurrent execution
-- Error handling and recovery
-- Interval-based skipping
+- 配置加载和验证
+- 数据库连接和池化
+- SQL 执行（简单查询、CTE、多结果集）
+- 数据类型转换（所有 MySQL 类型）
+- JSON 序列化和原子写入
+- 文件扫描和目录遍历
+- 并发执行
+- 错误处理和恢复
+- 基于间隔的跳过
 
-## Troubleshooting
+## 故障排除
 
-### Common Issues
+### 常见问题
 
-1. **Connection refused**
-   - Ensure MySQL is running and accessible
-   - Check host/port configuration
-   - Verify firewall settings
+1. **连接被拒绝**
+   - 确保 MySQL 正在运行且可访问
+   - 检查主机/端口配置
+   - 验证防火墙设置
 
-2. **Authentication failed**
-   - Verify username/password
-   - Check user privileges
+2. **认证失败**
+   - 验证用户名/密码
+   - 检查用户权限
 
-3. **Permission denied on JSON write**
-   - Check directory permissions
-   - Ensure write access to output directory
+3. **JSON 写入权限被拒绝**
+   - 检查目录权限
+   - 确保对输出目录有写入权限
 
-4. **Query timeout**
-   - Increase `timeout_seconds` in config
-   - Optimize slow queries
+4. **查询超时**
+   - 增加配置中的 `timeout_seconds`
+   - 优化慢查询
 
-### Logs
+### 日志
 
 ```bash
-# Docker logs
+# Docker 日志
 docker-compose logs mysql-executor
 
-# Increase log verbosity
+# 增加日志详细程度
 RUST_LOG=debug docker-compose up mysql-executor
 ```
 
-## License
+## 许可证
 
 MIT License
 
-## Production Deployment
+## 生产部署
 
-### Recommended Configuration
+### 推荐配置
 
 ```toml
 [database]
 host = "mysql-primary.internal"
 port = 3306
 username = "executor_prod"
-password = "${MYSQL_PASSWORD}"  # Use environment variable
+password = "${MYSQL_PASSWORD}"  # 使用环境变量
 database = "production"
-pool_size = 20                  # Adjust based on workload
-timeout_seconds = 600           # 10 minutes for complex queries
+pool_size = 20                  # 根据工作负载调整
+timeout_seconds = 600           # 复杂查询 10 分钟
 
 [execution]
 scan_directory = "/data/sql"
-max_concurrent_files = 8        # Adjust based on CPU cores
+max_concurrent_files = 8        # 根据 CPU 核心数调整
 
 [execution.file_intervals]
-"reports/daily_summary.sql" = 1440   # Once per day
-"reports/hourly_stats.sql" = 60      # Once per hour
+"reports/daily_summary.sql" = 1440   # 每天一次
+"reports/hourly_stats.sql" = 60      # 每小时一次
 ```
 
-### Performance Tuning
+### 性能调优
 
-| Parameter | Development | Production | Notes |
-|-----------|-------------|------------|-------|
-| `pool_size` | 5-10 | 20-50 | Based on concurrent queries |
-| `max_concurrent_files` | 2-4 | 4-16 | Based on CPU cores |
-| `timeout_seconds` | 30-60 | 300-600 | Based on query complexity |
+| 参数 | 开发环境 | 生产环境 | 说明 |
+|------|----------|----------|------|
+| `pool_size` | 5-10 | 20-50 | 基于并发查询数 |
+| `max_concurrent_files` | 2-4 | 4-16 | 基于 CPU 核心数 |
+| `timeout_seconds` | 30-60 | 300-600 | 基于查询复杂度 |
 
-### Security Best Practices
+### 安全最佳实践
 
-1. **Database User Privileges**: Create a dedicated user with minimal required privileges
+1. **数据库用户权限**：创建具有最小必要权限的专用用户
    ```sql
    CREATE USER 'executor_prod'@'%' IDENTIFIED BY 'secure_password';
    GRANT SELECT ON production.* TO 'executor_prod'@'%';
-   -- Add INSERT/UPDATE only if needed for stored procedures
+   -- 仅在存储过程需要时添加 INSERT/UPDATE
    ```
 
-2. **Network Security**: Use internal network or VPN for database connections
+2. **网络安全**：使用内网或 VPN 进行数据库连接
 
-3. **Secrets Management**: Use environment variables or secrets manager for passwords
+3. **密钥管理**：使用环境变量或密钥管理器存储密码
    ```bash
    export MYSQL_PASSWORD="$(aws secretsmanager get-secret-value --secret-id mysql-prod --query SecretString --output text)"
    ```
 
-### Monitoring
+### 监控
 
-1. **Log Aggregation**: Configure `RUST_LOG` and forward logs to your logging system
+1. **日志聚合**：配置 `RUST_LOG` 并将日志转发到日志系统
    ```bash
    RUST_LOG=info,mysql_executor=debug
    ```
 
-2. **Metrics to Monitor**:
-   - Execution duration per file
-   - Success/failure rates
-   - JSON files updated count
-   - Database connection pool usage
+2. **监控指标**：
+   - 每个文件的执行时长
+   - 成功/失败率
+   - JSON 文件更新数量
+   - 数据库连接池使用情况
 
-3. **Health Checks**: Monitor the process exit code (0 = success, 1 = failures occurred)
+3. **健康检查**：监控进程退出码（0 = 成功，1 = 有失败）
 
-### Scheduling
+### 定时调度
 
-Use cron or a job scheduler to run periodically:
+使用 cron 或任务调度器定期运行：
 
 ```bash
-# Run every 5 minutes
+# 每 5 分钟运行一次
 */5 * * * * /usr/local/bin/mysql-executor >> /var/log/mysql-executor.log 2>&1
 ```
 
-Or use systemd timer for better control:
+或使用 systemd timer 获得更好的控制：
 
 ```ini
 # /etc/systemd/system/mysql-executor.timer
 [Unit]
-Description=MySQL Executor Timer
+Description=MySQL Executor 定时器
 
 [Timer]
 OnCalendar=*:0/5

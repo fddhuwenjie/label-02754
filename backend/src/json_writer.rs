@@ -1,7 +1,6 @@
-//! JSON output writer module.
+//! JSON 输出写入模块
 //!
-//! Handles atomic writing of query results to JSON files with file locking
-//! to ensure data integrity during concurrent operations.
+//! 处理查询结果到 JSON 文件的原子性写入，使用文件锁确保并发操作时的数据完整性。
 
 use crate::database::{QueryResults, ResultSet};
 use chrono::{DateTime, Utc};
@@ -13,91 +12,91 @@ use std::path::Path;
 use thiserror::Error;
 use uuid::Uuid;
 
-/// JSON writing errors.
+/// JSON 写入错误
 #[derive(Error, Debug)]
 pub enum JsonWriterError {
-    /// File I/O error
-    #[error("IO error: {0}")]
+    /// 文件 I/O 错误
+    #[error("IO 错误: {0}")]
     IoError(#[from] std::io::Error),
-    /// JSON serialization error
-    #[error("Serialization error: {0}")]
+    /// JSON 序列化错误
+    #[error("序列化错误: {0}")]
     SerializationError(#[from] serde_json::Error),
-    /// Failed to acquire file lock
-    #[error("Failed to acquire file lock: {0}")]
+    /// 获取文件锁失败
+    #[error("获取文件锁失败: {0}")]
     LockError(String),
-    /// Atomic write operation failed
-    #[error("Atomic write failed: {0}")]
+    /// 原子写入操作失败
+    #[error("原子写入失败: {0}")]
     AtomicWriteError(String),
 }
 
-/// Execution metadata included in JSON output.
+/// JSON 输出中包含的执行元数据
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JsonMetadata {
-    /// Timestamp when the query was executed
+    /// 查询执行的时间戳
     pub execution_time: DateTime<Utc>,
-    /// MySQL server version
+    /// MySQL 服务器版本
     pub mysql_version: Option<String>,
-    /// Number of result sets returned
+    /// 返回的结果集数量
     pub total_result_sets: usize,
-    /// Source SQL file path
+    /// 源 SQL 文件路径
     pub source_file: String,
-    /// Query execution duration in milliseconds
+    /// 查询执行时长（毫秒）
     pub execution_duration_ms: u64,
 }
 
-/// Single result set in JSON format.
+/// JSON 格式的单个结果集
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JsonResultSet {
-    /// Result set index (0-based)
+    /// 结果集索引（从 0 开始）
     pub index: usize,
-    /// Column definitions
+    /// 列定义
     pub columns: Vec<JsonColumnInfo>,
-    /// Row data as key-value maps
+    /// 行数据（键值对映射）
     pub rows: Vec<serde_json::Map<String, serde_json::Value>>,
-    /// Number of rows in this result set
+    /// 此结果集的行数
     pub row_count: usize,
-    /// Number of rows affected by the query
+    /// 查询影响的行数
     pub affected_rows: u64,
-    /// Whether the result set was truncated due to size limits
+    /// 结果集是否因大小限制而被截断
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub truncated: bool,
-    /// Total rows before truncation (only present if truncated)
+    /// 截断前的总行数（仅在截断时存在）
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub total_rows: Option<usize>,
 }
 
-/// Column metadata in JSON format.
+/// JSON 格式的列元数据
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JsonColumnInfo {
-    /// Column name
+    /// 列名
     pub name: String,
-    /// MySQL data type
+    /// MySQL 数据类型
     pub data_type: String,
 }
 
-/// Complete JSON output structure.
+/// 完整的 JSON 输出结构
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JsonOutput {
-    /// Execution metadata
+    /// 执行元数据
     pub metadata: JsonMetadata,
-    /// Query result sets
+    /// 查询结果集
     pub result_sets: Vec<JsonResultSet>,
 }
 
-/// Handles writing query results to JSON files.
+/// 处理查询结果写入 JSON 文件
 pub struct JsonWriter;
 
 impl JsonWriter {
-    /// Write query results to a JSON file atomically.
+    /// 原子性地将查询结果写入 JSON 文件
     ///
-    /// Uses a temporary file and rename to ensure atomic writes.
-    /// The JSON file will not be corrupted even if the process is interrupted.
+    /// 使用临时文件和重命名确保原子写入。
+    /// 即使进程被中断，JSON 文件也不会损坏。
     ///
-    /// # Arguments
-    /// * `path` - Output JSON file path
-    /// * `results` - Query execution results
-    /// * `source_file` - Source SQL file path for metadata
-    /// * `execution_duration_ms` - Query execution time in milliseconds
+    /// # 参数
+    /// * `path` - 输出 JSON 文件路径
+    /// * `results` - 查询执行结果
+    /// * `source_file` - 源 SQL 文件路径（用于元数据）
+    /// * `execution_duration_ms` - 查询执行时间（毫秒）
     pub fn write_results<P: AsRef<Path>>(
         path: P,
         results: &QueryResults,
@@ -106,18 +105,18 @@ impl JsonWriter {
     ) -> Result<(), JsonWriterError> {
         let path = path.as_ref();
         
-        // Create parent directories if they don't exist
+        // 如果父目录不存在则创建
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;
         }
 
-        // Convert results to JSON structure
+        // 将结果转换为 JSON 结构
         let output = Self::convert_to_json_output(results, source_file, execution_duration_ms);
         
-        // Serialize to JSON
+        // 序列化为 JSON
         let json_content = serde_json::to_string_pretty(&output)?;
         
-        // Atomic write: write to temp file first, then rename
+        // 原子写入：先写入临时文件，然后重命名
         Self::atomic_write(path, &json_content)?;
         
         Ok(())
@@ -186,11 +185,11 @@ impl JsonWriter {
         let path = path.as_ref();
         let parent = path.parent().unwrap_or(Path::new("."));
         
-        // Create a temporary file in the same directory
+        // 在同一目录创建临时文件
         let temp_filename = format!(".tmp_{}.json", Uuid::new_v4());
         let temp_path = parent.join(&temp_filename);
         
-        // Write to temporary file with exclusive lock
+        // 使用排他锁写入临时文件
         {
             let mut temp_file = File::create(&temp_path)?;
             temp_file
@@ -205,9 +204,9 @@ impl JsonWriter {
                 .map_err(|e| JsonWriterError::LockError(e.to_string()))?;
         }
         
-        // Atomic rename
+        // 原子重命名
         fs::rename(&temp_path, path).map_err(|e| {
-            // Clean up temp file on failure
+            // 失败时清理临时文件
             let _ = fs::remove_file(&temp_path);
             JsonWriterError::AtomicWriteError(e.to_string())
         })?;
@@ -368,46 +367,16 @@ mod tests {
         let results = QueryResults {
             result_sets: vec![ResultSet {
                 columns: vec![
-                    ColumnInfo {
-                        name: "null_val".to_string(),
-                        column_type: "NULL".to_string(),
-                    },
-                    ColumnInfo {
-                        name: "bool_val".to_string(),
-                        column_type: "TINYINT".to_string(),
-                    },
-                    ColumnInfo {
-                        name: "int_val".to_string(),
-                        column_type: "INT".to_string(),
-                    },
-                    ColumnInfo {
-                        name: "uint_val".to_string(),
-                        column_type: "INT UNSIGNED".to_string(),
-                    },
-                    ColumnInfo {
-                        name: "float_val".to_string(),
-                        column_type: "DOUBLE".to_string(),
-                    },
-                    ColumnInfo {
-                        name: "string_val".to_string(),
-                        column_type: "VARCHAR".to_string(),
-                    },
-                    ColumnInfo {
-                        name: "date_val".to_string(),
-                        column_type: "DATE".to_string(),
-                    },
-                    ColumnInfo {
-                        name: "time_val".to_string(),
-                        column_type: "TIME".to_string(),
-                    },
-                    ColumnInfo {
-                        name: "datetime_val".to_string(),
-                        column_type: "DATETIME".to_string(),
-                    },
-                    ColumnInfo {
-                        name: "bytes_val".to_string(),
-                        column_type: "BLOB".to_string(),
-                    },
+                    ColumnInfo { name: "null_val".to_string(), column_type: "NULL".to_string() },
+                    ColumnInfo { name: "bool_val".to_string(), column_type: "TINYINT".to_string() },
+                    ColumnInfo { name: "int_val".to_string(), column_type: "INT".to_string() },
+                    ColumnInfo { name: "uint_val".to_string(), column_type: "INT UNSIGNED".to_string() },
+                    ColumnInfo { name: "float_val".to_string(), column_type: "DOUBLE".to_string() },
+                    ColumnInfo { name: "string_val".to_string(), column_type: "VARCHAR".to_string() },
+                    ColumnInfo { name: "date_val".to_string(), column_type: "DATE".to_string() },
+                    ColumnInfo { name: "time_val".to_string(), column_type: "TIME".to_string() },
+                    ColumnInfo { name: "datetime_val".to_string(), column_type: "DATETIME".to_string() },
+                    ColumnInfo { name: "bytes_val".to_string(), column_type: "BLOB".to_string() },
                 ],
                 rows: vec![vec![
                     JsonValue::Null,
@@ -495,10 +464,10 @@ mod tests {
         let dir = tempdir().unwrap();
         let json_path = dir.path().join("overwrite.json");
 
-        // Write initial content
+        // 写入初始内容
         fs::write(&json_path, "old content").unwrap();
 
-        // Atomic write should overwrite
+        // 原子写入应该覆盖
         JsonWriter::atomic_write(&json_path, "new content").unwrap();
 
         let content = fs::read_to_string(&json_path).unwrap();
@@ -516,7 +485,7 @@ mod tests {
 
         let content = fs::read_to_string(&json_path).unwrap();
 
-        // Verify it's valid JSON by parsing it
+        // 通过解析验证是有效的 JSON
         let parsed: serde_json::Value = serde_json::from_str(&content).unwrap();
         assert!(parsed.is_object());
         assert!(parsed.get("metadata").is_some());
@@ -537,14 +506,8 @@ mod tests {
     fn test_convert_result_set() {
         let rs = ResultSet {
             columns: vec![
-                ColumnInfo {
-                    name: "col1".to_string(),
-                    column_type: "INT".to_string(),
-                },
-                ColumnInfo {
-                    name: "col2".to_string(),
-                    column_type: "VARCHAR".to_string(),
-                },
+                ColumnInfo { name: "col1".to_string(), column_type: "INT".to_string() },
+                ColumnInfo { name: "col2".to_string(), column_type: "VARCHAR".to_string() },
             ],
             rows: vec![
                 vec![JsonValue::Int(1), JsonValue::String("a".to_string())],
