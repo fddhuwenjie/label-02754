@@ -1,10 +1,12 @@
 //! JSON 输出写入模块
 //!
 //! 处理查询结果到 JSON 文件的原子性写入，使用文件锁确保并发操作时的数据完整性。
+//! 支持跨进程互斥锁，确保多进程同时写入同一文件时的安全性。
 
 use crate::database::{QueryResults, ResultSet};
 use chrono::{DateTime, Utc};
 use fs2::FileExt;
+use fslock::LockFile;
 use serde::{Deserialize, Serialize};
 use std::fs::{self, File};
 use std::io::Write;
@@ -42,6 +44,10 @@ pub struct JsonMetadata {
     pub source_file: String,
     /// 查询执行时长（毫秒）
     pub execution_duration_ms: u64,
+    /// 所有结果集的总受影响行数
+    pub total_affected_rows: u64,
+    /// 所有结果集的总行数
+    pub total_rows: usize,
 }
 
 /// JSON 格式的单个结果集
@@ -134,6 +140,10 @@ impl JsonWriter {
             .map(|(idx, rs)| Self::convert_result_set(idx, rs))
             .collect();
 
+        // 聚合总受影响行数和总行数
+        let total_affected_rows: u64 = result_sets.iter().map(|rs| rs.affected_rows).sum();
+        let total_rows: usize = result_sets.iter().map(|rs| rs.row_count).sum();
+
         JsonOutput {
             metadata: JsonMetadata {
                 execution_time: Utc::now(),
@@ -141,6 +151,8 @@ impl JsonWriter {
                 total_result_sets: result_sets.len(),
                 source_file: source_file.to_string(),
                 execution_duration_ms,
+                total_affected_rows,
+                total_rows,
             },
             result_sets,
         }
@@ -185,33 +197,57 @@ impl JsonWriter {
         let path = path.as_ref();
         let parent = path.parent().unwrap_or(Path::new("."));
         
+        // 创建锁文件路径（用于跨进程互斥）
+        let lock_filename = format!("{}.lock", path.file_name().unwrap_or_default().to_string_lossy());
+        let lock_path = parent.join(&lock_filename);
+        
+        // 确保锁文件目录存在
+        if let Some(lock_parent) = lock_path.parent() {
+            fs::create_dir_all(lock_parent)?;
+        }
+        
+        // 获取跨进程互斥锁
+        let mut lock_file = LockFile::open(&lock_path)
+            .map_err(|e| JsonWriterError::LockError(format!("无法创建锁文件: {}", e)))?;
+        
+        lock_file
+            .lock()
+            .map_err(|e| JsonWriterError::LockError(format!("获取跨进程锁失败: {}", e)))?;
+        
         // 在同一目录创建临时文件
         let temp_filename = format!(".tmp_{}.json", Uuid::new_v4());
         let temp_path = parent.join(&temp_filename);
         
-        // 使用排他锁写入临时文件
-        {
-            let mut temp_file = File::create(&temp_path)?;
-            temp_file
-                .try_lock_exclusive()
-                .map_err(|e| JsonWriterError::LockError(e.to_string()))?;
+        let result = (|| {
+            // 使用排他锁写入临时文件
+            {
+                let mut temp_file = File::create(&temp_path)?;
+                temp_file
+                    .try_lock_exclusive()
+                    .map_err(|e| JsonWriterError::LockError(e.to_string()))?;
+                
+                temp_file.write_all(content.as_bytes())?;
+                temp_file.sync_all()?;
+                
+                temp_file
+                    .unlock()
+                    .map_err(|e| JsonWriterError::LockError(e.to_string()))?;
+            }
             
-            temp_file.write_all(content.as_bytes())?;
-            temp_file.sync_all()?;
+            // 原子重命名
+            fs::rename(&temp_path, path).map_err(|e| {
+                // 失败时清理临时文件
+                let _ = fs::remove_file(&temp_path);
+                JsonWriterError::AtomicWriteError(e.to_string())
+            })?;
             
-            temp_file
-                .unlock()
-                .map_err(|e| JsonWriterError::LockError(e.to_string()))?;
-        }
+            Ok(())
+        })();
         
-        // 原子重命名
-        fs::rename(&temp_path, path).map_err(|e| {
-            // 失败时清理临时文件
-            let _ = fs::remove_file(&temp_path);
-            JsonWriterError::AtomicWriteError(e.to_string())
-        })?;
+        // 释放跨进程锁
+        let _ = lock_file.unlock();
         
-        Ok(())
+        result
     }
 }
 
@@ -228,10 +264,20 @@ mod tests {
                     ColumnInfo {
                         name: "id".to_string(),
                         column_type: "INT".to_string(),
+                        is_enum: false,
+                        is_set: false,
+                        is_binary: false,
+                        is_json: false,
+                        is_geometry: false,
                     },
                     ColumnInfo {
                         name: "name".to_string(),
                         column_type: "VARCHAR".to_string(),
+                        is_enum: false,
+                        is_set: false,
+                        is_binary: false,
+                        is_json: false,
+                        is_geometry: false,
                     },
                 ],
                 rows: vec![vec![
@@ -299,6 +345,11 @@ mod tests {
                 columns: vec![ColumnInfo {
                     name: "id".to_string(),
                     column_type: "INT".to_string(),
+                    is_enum: false,
+                    is_set: false,
+                    is_binary: false,
+                    is_json: false,
+                    is_geometry: false,
                 }],
                 rows: vec![],
                 affected_rows: 0,
@@ -328,6 +379,11 @@ mod tests {
                     columns: vec![ColumnInfo {
                         name: "id".to_string(),
                         column_type: "INT".to_string(),
+                        is_enum: false,
+                        is_set: false,
+                        is_binary: false,
+                        is_json: false,
+                        is_geometry: false,
                     }],
                     rows: vec![vec![JsonValue::Int(1)]],
                     affected_rows: 0,
@@ -338,6 +394,11 @@ mod tests {
                     columns: vec![ColumnInfo {
                         name: "name".to_string(),
                         column_type: "VARCHAR".to_string(),
+                        is_enum: false,
+                        is_set: false,
+                        is_binary: false,
+                        is_json: false,
+                        is_geometry: false,
                     }],
                     rows: vec![vec![JsonValue::String("test".to_string())]],
                     affected_rows: 0,
@@ -367,16 +428,16 @@ mod tests {
         let results = QueryResults {
             result_sets: vec![ResultSet {
                 columns: vec![
-                    ColumnInfo { name: "null_val".to_string(), column_type: "NULL".to_string() },
-                    ColumnInfo { name: "bool_val".to_string(), column_type: "TINYINT".to_string() },
-                    ColumnInfo { name: "int_val".to_string(), column_type: "INT".to_string() },
-                    ColumnInfo { name: "uint_val".to_string(), column_type: "INT UNSIGNED".to_string() },
-                    ColumnInfo { name: "float_val".to_string(), column_type: "DOUBLE".to_string() },
-                    ColumnInfo { name: "string_val".to_string(), column_type: "VARCHAR".to_string() },
-                    ColumnInfo { name: "date_val".to_string(), column_type: "DATE".to_string() },
-                    ColumnInfo { name: "time_val".to_string(), column_type: "TIME".to_string() },
-                    ColumnInfo { name: "datetime_val".to_string(), column_type: "DATETIME".to_string() },
-                    ColumnInfo { name: "bytes_val".to_string(), column_type: "BLOB".to_string() },
+                    ColumnInfo { name: "null_val".to_string(), column_type: "NULL".to_string(), is_enum: false, is_set: false, is_binary: false, is_json: false, is_geometry: false },
+                    ColumnInfo { name: "bool_val".to_string(), column_type: "TINYINT".to_string(), is_enum: false, is_set: false, is_binary: false, is_json: false, is_geometry: false },
+                    ColumnInfo { name: "int_val".to_string(), column_type: "INT".to_string(), is_enum: false, is_set: false, is_binary: false, is_json: false, is_geometry: false },
+                    ColumnInfo { name: "uint_val".to_string(), column_type: "INT UNSIGNED".to_string(), is_enum: false, is_set: false, is_binary: false, is_json: false, is_geometry: false },
+                    ColumnInfo { name: "float_val".to_string(), column_type: "DOUBLE".to_string(), is_enum: false, is_set: false, is_binary: false, is_json: false, is_geometry: false },
+                    ColumnInfo { name: "string_val".to_string(), column_type: "VARCHAR".to_string(), is_enum: false, is_set: false, is_binary: false, is_json: false, is_geometry: false },
+                    ColumnInfo { name: "date_val".to_string(), column_type: "DATE".to_string(), is_enum: false, is_set: false, is_binary: false, is_json: false, is_geometry: false },
+                    ColumnInfo { name: "time_val".to_string(), column_type: "TIME".to_string(), is_enum: false, is_set: false, is_binary: false, is_json: false, is_geometry: false },
+                    ColumnInfo { name: "datetime_val".to_string(), column_type: "DATETIME".to_string(), is_enum: false, is_set: false, is_binary: false, is_json: false, is_geometry: false },
+                    ColumnInfo { name: "bytes_val".to_string(), column_type: "BLOB".to_string(), is_enum: false, is_set: false, is_binary: true, is_json: false, is_geometry: false },
                 ],
                 rows: vec![vec![
                     JsonValue::Null,
@@ -422,6 +483,11 @@ mod tests {
                 columns: vec![ColumnInfo {
                     name: "id".to_string(),
                     column_type: "INT".to_string(),
+                    is_enum: false,
+                    is_set: false,
+                    is_binary: false,
+                    is_json: false,
+                    is_geometry: false,
                 }],
                 rows: vec![vec![JsonValue::Int(1)], vec![JsonValue::Int(2)]],
                 affected_rows: 0,
@@ -506,8 +572,8 @@ mod tests {
     fn test_convert_result_set() {
         let rs = ResultSet {
             columns: vec![
-                ColumnInfo { name: "col1".to_string(), column_type: "INT".to_string() },
-                ColumnInfo { name: "col2".to_string(), column_type: "VARCHAR".to_string() },
+                ColumnInfo { name: "col1".to_string(), column_type: "INT".to_string(), is_enum: false, is_set: false, is_binary: false, is_json: false, is_geometry: false },
+                ColumnInfo { name: "col2".to_string(), column_type: "VARCHAR".to_string(), is_enum: false, is_set: false, is_binary: false, is_json: false, is_geometry: false },
             ],
             rows: vec![
                 vec![JsonValue::Int(1), JsonValue::String("a".to_string())],
@@ -525,5 +591,56 @@ mod tests {
         assert_eq!(json_rs.row_count, 2);
         assert_eq!(json_rs.affected_rows, 5);
         assert!(!json_rs.truncated);
+    }
+
+    #[test]
+    fn test_metadata_total_affected_rows() {
+        let dir = tempdir().unwrap();
+        let json_path = dir.path().join("affected.json");
+
+        let results = QueryResults {
+            result_sets: vec![
+                ResultSet {
+                    columns: vec![ColumnInfo {
+                        name: "id".to_string(),
+                        column_type: "INT".to_string(),
+                        is_enum: false,
+                        is_set: false,
+                        is_binary: false,
+                        is_json: false,
+                        is_geometry: false,
+                    }],
+                    rows: vec![vec![JsonValue::Int(1)]],
+                    affected_rows: 10,
+                    truncated: false,
+                    total_rows: 1,
+                },
+                ResultSet {
+                    columns: vec![ColumnInfo {
+                        name: "id".to_string(),
+                        column_type: "INT".to_string(),
+                        is_enum: false,
+                        is_set: false,
+                        is_binary: false,
+                        is_json: false,
+                        is_geometry: false,
+                    }],
+                    rows: vec![vec![JsonValue::Int(2)], vec![JsonValue::Int(3)]],
+                    affected_rows: 20,
+                    truncated: false,
+                    total_rows: 2,
+                },
+            ],
+            mysql_version: Some("8.0.35".to_string()),
+        };
+
+        JsonWriter::write_results(&json_path, &results, "affected.sql", 50).unwrap();
+
+        let content = fs::read_to_string(&json_path).unwrap();
+        let output: JsonOutput = serde_json::from_str(&content).unwrap();
+
+        // 验证总受影响行数聚合
+        assert_eq!(output.metadata.total_affected_rows, 30); // 10 + 20
+        assert_eq!(output.metadata.total_rows, 3); // 1 + 2
     }
 }

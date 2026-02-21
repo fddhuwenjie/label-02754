@@ -313,6 +313,11 @@ fn test_json_writer_atomic_safety() {
             columns: vec![ColumnInfo {
                 name: "id".to_string(),
                 column_type: "INT".to_string(),
+                is_enum: false,
+                is_set: false,
+                is_binary: false,
+                is_json: false,
+                is_geometry: false,
             }],
             rows: vec![vec![JsonValue::Int(42)]],
             affected_rows: 0,
