@@ -35,6 +35,11 @@ WORKDIR /app
 # Copy the binary from builder
 COPY --from=builder /app/target/release/mysql-executor /app/mysql-executor
 
+# Copy default config and entrypoint
+COPY default-config.toml /app/default-config.toml
+COPY docker-entrypoint.sh /app/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh
+
 # Create directories for SQL files and config
 RUN mkdir -p /app/sql /app/config
 
@@ -42,5 +47,5 @@ RUN mkdir -p /app/sql /app/config
 ENV RUST_LOG=info
 ENV MYSQL_EXECUTOR_CONFIG=/app/config/config.toml
 
-# Run the application
-CMD ["/app/mysql-executor"]
+# Use entrypoint to handle config fallback
+ENTRYPOINT ["/app/docker-entrypoint.sh"]

@@ -168,6 +168,15 @@ exit /b 0
 :run_docker
 call :info "正在使用 Docker 启动服务..."
 
+:: 确保 config 目录存在（Docker 挂载需要）
+if not exist "config" mkdir config
+
+if exist "config\config.toml" (
+    call :info "检测到用户配置 config\config.toml，将使用用户配置"
+) else (
+    call :info "未检测到用户配置，容器将使用内置默认配置"
+)
+
 docker compose version >nul 2>&1
 if %errorlevel% equ 0 (
     set "COMPOSE_CMD=docker compose"

@@ -1,0 +1,18 @@
+# Docker 默认配置 - 与 docker-compose.yml 中的 MySQL 服务匹配
+# 如需自定义，请在 config/config.toml 中覆盖
+
+[database]
+host = "mysql"
+port = 3306
+username = "executor"
+password = "executorpass"
+database = "testdb"
+pool_size = 10
+timeout_seconds = 300
+
+[execution]
+scan_directory = "/app/sql"
+max_concurrent_files = 4
+
+[execution.file_intervals]
+"reports/daily_summary.sql" = 1440
