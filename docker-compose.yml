@@ -44,7 +44,7 @@ services:
       RUST_LOG: info
       MYSQL_EXECUTOR_CONFIG: /app/config/config.toml
     volumes:
-      - ./config:/app/config:ro
+      - ./config:/app/config
       - ./sql:/app/sql
     networks:
       - mysql-executor-network

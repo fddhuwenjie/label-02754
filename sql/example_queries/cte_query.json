@@ -1,10 +1,12 @@
 {
   "metadata": {
-    "execution_time": "2026-02-17T12:54:47.034168379Z",
+    "execution_time": "2026-03-17T07:52:18.375050961Z",
     "mysql_version": "8.0.45",
     "total_result_sets": 1,
     "source_file": "example_queries/cte_query.sql",
-    "execution_duration_ms": 10
+    "execution_duration_ms": 15,
+    "total_affected_rows": 0,
+    "total_rows": 1
   },
   "result_sets": [
     {

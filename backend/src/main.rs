@@ -26,11 +26,29 @@ fn main() {
     let config_path = get_config_path();
     info!("使用配置文件: {}", config_path.display());
 
-    // 检查配置是否存在，不存在则创建默认配置
+    // 检查配置是否存在，不存在则尝试创建默认配置
     if !config_path.exists() {
+        // 先检查父目录是否存在
+        if let Some(parent) = config_path.parent() {
+            if !parent.exists() {
+                info!("配置目录不存在，正在创建: {}", parent.display());
+                if let Err(e) = std::fs::create_dir_all(parent) {
+                    error!(
+                        "创建配置目录失败: {}。请确保配置文件已挂载到: {}",
+                        e,
+                        config_path.display()
+                    );
+                    process::exit(1);
+                }
+            }
+        }
+
         info!("配置文件未找到，正在创建默认配置...");
         if let Err(e) = Config::create_default_config(&config_path) {
-            error!("创建默认配置失败: {}", e);
+            error!(
+                "创建默认配置失败: {}。如果在 Docker 中运行，请确保配置文件已正确挂载（不要使用只读模式，或确保文件已存在于挂载卷中）。",
+                e
+            );
             process::exit(1);
         }
         info!(

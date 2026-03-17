@@ -1,10 +1,12 @@
 {
   "metadata": {
-    "execution_time": "2026-02-17T12:54:47.030599045Z",
+    "execution_time": "2026-03-17T07:52:18.371306795Z",
     "mysql_version": "8.0.45",
     "total_result_sets": 1,
     "source_file": "example_queries/simple_select.sql",
-    "execution_duration_ms": 7
+    "execution_duration_ms": 11,
+    "total_affected_rows": 0,
+    "total_rows": 2
   },
   "result_sets": [
     {
@@ -33,17 +35,23 @@
       ],
       "rows": [
         {
-          "created_at": "2026-02-17 08:24:16",
+          "created_at": "MjAyNi0wMy0xNyAwNzo1MjoxMQ==",
           "email": "test1@example.com",
           "id": "1",
-          "status": "active",
+          "status": {
+            "_type": "enum",
+            "value": "active"
+          },
           "username": "testuser1"
         },
         {
-          "created_at": "2026-02-17 08:24:16",
+          "created_at": "MjAyNi0wMy0xNyAwNzo1MjoxMQ==",
           "email": "test2@example.com",
           "id": "2",
-          "status": "active",
+          "status": {
+            "_type": "enum",
+            "value": "active"
+          },
           "username": "testuser2"
         }
       ],

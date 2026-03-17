@@ -1,10 +1,12 @@
 {
   "metadata": {
-    "execution_time": "2026-02-17T12:54:47.035590295Z",
+    "execution_time": "2026-03-17T07:52:18.372850586Z",
     "mysql_version": "8.0.45",
     "total_result_sets": 2,
     "source_file": "example_queries/stored_procedure.sql",
-    "execution_duration_ms": 12
+    "execution_duration_ms": 13,
+    "total_affected_rows": 0,
+    "total_rows": 2
   },
   "result_sets": [
     {
@@ -33,14 +35,14 @@
       ],
       "rows": [
         {
-          "order_date": "2026-02-17",
+          "order_date": "MjAyNi0wMy0xNw==",
           "order_id": "1",
           "status": "completed",
           "total_amount": "79.98",
           "username": "testuser1"
         },
         {
-          "order_date": "2026-02-16",
+          "order_date": "MjAyNi0wMy0xNg==",
           "order_id": "2",
           "status": "completed",
           "total_amount": "29.99",

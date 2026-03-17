@@ -1,10 +1,12 @@
 {
   "metadata": {
-    "execution_time": "2026-02-17T12:54:47.035095004Z",
+    "execution_time": "2026-03-17T07:52:18.392971295Z",
     "mysql_version": "8.0.45",
     "total_result_sets": 1,
     "source_file": "example_queries/data_types.sql",
-    "execution_duration_ms": 1
+    "execution_duration_ms": 7,
+    "total_affected_rows": 0,
+    "total_rows": 1
   },
   "result_sets": [
     {
@@ -61,17 +63,17 @@
       ],
       "rows": [
         {
-          "bigint_value": "9223372036854775807",
-          "bool_false": "0",
-          "bool_true": "1",
-          "date_value": "2026-02-17",
-          "datetime_value": "2026-02-17 12:54:47",
-          "decimal_value": "3.14159",
-          "double_value": "2.71828",
-          "int_value": "123",
+          "bigint_value": "OTIyMzM3MjAzNjg1NDc3NTgwNw==",
+          "bool_false": "MA==",
+          "bool_true": "MQ==",
+          "date_value": "MjAyNi0wMy0xNw==",
+          "datetime_value": "MjAyNi0wMy0xNyAwNzo1MjoxOA==",
+          "decimal_value": "My4xNDE1OQ==",
+          "double_value": "Mi43MTgyOA==",
+          "int_value": "MTIz",
           "null_value": null,
-          "time_value": "12:54:47",
-          "timestamp_value": "2026-02-17 12:54:47",
+          "time_value": "MDc6NTI6MTg=",
+          "timestamp_value": "MjAyNi0wMy0xNyAwNzo1MjoxOA==",
           "varchar_value": "Hello World"
         }
       ],

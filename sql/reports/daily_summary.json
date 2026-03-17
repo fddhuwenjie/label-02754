@@ -1,10 +1,12 @@
 {
   "metadata": {
-    "execution_time": "2026-02-17T08:24:20.427826800Z",
+    "execution_time": "2026-03-17T07:52:18.389311961Z",
     "mysql_version": "8.0.45",
     "total_result_sets": 1,
     "source_file": "reports/daily_summary.sql",
-    "execution_duration_ms": 2
+    "execution_duration_ms": 6,
+    "total_affected_rows": 0,
+    "total_rows": 1
   },
   "result_sets": [
     {
@@ -37,12 +39,12 @@
       ],
       "rows": [
         {
-          "active_users": "2",
-          "products_in_stock": "3",
-          "report_date": "2026-02-17",
-          "today_orders": "2",
-          "today_revenue": "129.97",
-          "total_users": "3"
+          "active_users": "Mg==",
+          "products_in_stock": "Mw==",
+          "report_date": "MjAyNi0wMy0xNw==",
+          "today_orders": "Mg==",
+          "today_revenue": "MTI5Ljk3",
+          "total_users": "Mw=="
         }
       ],
       "row_count": 1,
