@@ -26,8 +26,9 @@ logs/
 # Docker
 docker-compose.override.yml
 
-# Generated JSON files (optional - uncomment if you don't want to track them)
-# sql/**/*.json
+# Generated JSON result files
+sql/**/*.json
+sql/**/*.json.lock
 
 # Temporary files
 *.tmp
