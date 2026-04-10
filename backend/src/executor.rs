@@ -115,17 +115,36 @@ impl Executor {
         Ok(results)
     }
 
-    fn process_file(&self, sql_file: &SqlFile) -> ExecutionResult {
+    fn read_sql_content(&self, sql_file: &SqlFile) -> Result<String, ExecutorError> {
+        let content = sql_file.read_content()?;
+        Ok(content)
+    }
+
+    fn execute_sql(&self, sql_file: &SqlFile, sql_content: &str) -> Result<(u64, bool), ExecutorError> {
         let start_time = Instant::now();
-        let relative_path = &sql_file.relative_path;
+        let results = self.pool.execute_sql(sql_content)?;
+        let execution_time_ms = start_time.elapsed().as_millis() as u64;
+        
+        JsonWriter::write_results(
+            &sql_file.json_path,
+            &results,
+            &sql_file.relative_path,
+            execution_time_ms,
+        )?;
+        
+        Ok((execution_time_ms, true))
+    }
 
-        info!("正在处理: {}", relative_path);
-
-        // 检查是否应该基于间隔跳过
-        if self.should_skip_file(sql_file) {
-            info!("跳过 {} - 在间隔期内", relative_path);
+    fn build_execution_result(
+        &self,
+        file_path: String,
+        start_time: Instant,
+        result: Result<(u64, bool), ExecutorError>,
+        skipped: bool,
+    ) -> ExecutionResult {
+        if skipped {
             return ExecutionResult {
-                file_path: relative_path.clone(),
+                file_path,
                 success: true,
                 error_message: None,
                 execution_time_ms: start_time.elapsed().as_millis() as u64,
@@ -133,71 +152,47 @@ impl Executor {
             };
         }
 
-        // 读取 SQL 内容
-        let sql_content = match sql_file.read_content() {
-            Ok(content) => content,
-            Err(e) => {
-                error!("读取 {} 失败: {}", relative_path, e);
-                return ExecutionResult {
-                    file_path: relative_path.clone(),
-                    success: false,
-                    error_message: Some(e.to_string()),
-                    execution_time_ms: start_time.elapsed().as_millis() as u64,
-                    json_updated: false,
-                };
-            }
-        };
-
-        // 执行 SQL
-        let results = match self.pool.execute_sql(&sql_content) {
-            Ok(results) => results,
-            Err(e) => {
-                error!("{} 的 SQL 执行失败: {}", relative_path, e);
-                return ExecutionResult {
-                    file_path: relative_path.clone(),
-                    success: false,
-                    error_message: Some(e.to_string()),
-                    execution_time_ms: start_time.elapsed().as_millis() as u64,
-                    json_updated: false,
-                };
-            }
-        };
-
-        let execution_time_ms = start_time.elapsed().as_millis() as u64;
-
-        // 写入 JSON 结果
-        match JsonWriter::write_results(
-            &sql_file.json_path,
-            &results,
-            relative_path,
-            execution_time_ms,
-        ) {
-            Ok(_) => {
-                info!(
-                    "成功处理 {} -> {} ({} ms)",
-                    relative_path,
-                    sql_file.json_path.display(),
-                    execution_time_ms
-                );
+        match result {
+            Ok((execution_time_ms, json_updated)) => {
+                info!("成功处理 {} ({} ms)", file_path, execution_time_ms);
                 ExecutionResult {
-                    file_path: relative_path.clone(),
+                    file_path,
                     success: true,
                     error_message: None,
                     execution_time_ms,
-                    json_updated: true,
+                    json_updated,
                 }
             }
             Err(e) => {
-                error!("写入 {} 的 JSON 失败: {}", relative_path, e);
+                error!("处理 {} 失败: {}", file_path, e);
                 ExecutionResult {
-                    file_path: relative_path.clone(),
+                    file_path,
                     success: false,
                     error_message: Some(e.to_string()),
-                    execution_time_ms,
+                    execution_time_ms: start_time.elapsed().as_millis() as u64,
                     json_updated: false,
                 }
             }
         }
+    }
+
+    fn process_file(&self, sql_file: &SqlFile) -> ExecutionResult {
+        let start_time = Instant::now();
+        let file_path = sql_file.relative_path.clone();
+        
+        info!("正在处理: {}", file_path);
+
+        if self.should_skip_file(sql_file) {
+            info!("跳过 {} - 在间隔期内", file_path);
+            return self.build_execution_result(file_path, start_time, Ok((0, false)), true);
+        }
+
+        let result = (|| -> Result<(u64, bool), ExecutorError> {
+            let sql_content = self.read_sql_content(sql_file)?;
+            self.execute_sql(sql_file, &sql_content)
+        })();
+
+        self.build_execution_result(file_path, start_time, result, false)
     }
 
     fn should_skip_file(&self, sql_file: &SqlFile) -> bool {
