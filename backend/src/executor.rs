@@ -125,46 +125,57 @@ impl Executor {
         Ok(results)
     }
 
-    fn build_execution_result(
+    fn build_execution_result_skipped(
+        &self,
+        sql_file: &SqlFile,
+        start_time: Instant,
+    ) -> ExecutionResult {
+        info!("跳过 {} - 在间隔期内", sql_file.relative_path);
+        ExecutionResult {
+            file_path: sql_file.relative_path.clone(),
+            success: true,
+            error_message: None,
+            execution_time_ms: start_time.elapsed().as_millis() as u64,
+            json_updated: false,
+        }
+    }
+
+    fn build_execution_result_success(
         &self,
         sql_file: &SqlFile,
         results: &crate::database::QueryResults,
         start_time: Instant,
-        success: bool,
-        error_message: Option<String>,
     ) -> Result<ExecutionResult, ExecutorError> {
         let execution_time_ms = start_time.elapsed().as_millis() as u64;
-        
-        if success {
-            JsonWriter::write_results(
-                &sql_file.json_path,
-                results,
-                &sql_file.relative_path,
-                execution_time_ms,
-            )?;
-            
-            info!(
-                "成功处理 {} -> {} ({} ms)",
-                sql_file.relative_path,
-                sql_file.json_path.display(),
-                execution_time_ms
-            );
-            
-            Ok(ExecutionResult {
-                file_path: sql_file.relative_path.clone(),
-                success: true,
-                error_message: None,
-                execution_time_ms,
-                json_updated: true,
-            })
-        } else {
-            Ok(ExecutionResult {
-                file_path: sql_file.relative_path.clone(),
-                success: false,
-                error_message,
-                execution_time_ms,
-                json_updated: false,
-            })
+        JsonWriter::write_results(
+            &sql_file.json_path,
+            results,
+            &sql_file.relative_path,
+            execution_time_ms,
+        )?;
+        info!(
+            "成功处理 {} -> {} ({} ms)",
+            sql_file.relative_path,
+            sql_file.json_path.display(),
+            execution_time_ms
+        );
+        Ok(ExecutionResult {
+            file_path: sql_file.relative_path.clone(),
+            success: true,
+            error_message: None,
+            execution_time_ms,
+            json_updated: true,
+        })
+    }
+
+    fn build_execution_result_error(&self, sql_file: &SqlFile, e: &ExecutorError, start_time: Instant) -> ExecutionResult {
+        error!("处理 {} 失败: {}", sql_file.relative_path, e);
+        ExecutionResult {
+            file_path: sql_file.relative_path.clone(),
+            success: false,
+            error_message: Some(e.to_string()),
+            execution_time_ms: start_time.elapsed().as_millis() as u64,
+            json_updated: false,
         }
     }
 
@@ -173,35 +184,16 @@ impl Executor {
         info!("正在处理: {}", sql_file.relative_path);
 
         if self.should_skip_file(sql_file) {
-            info!("跳过 {} - 在间隔期内", sql_file.relative_path);
-            return ExecutionResult {
-                file_path: sql_file.relative_path.clone(),
-                success: true,
-                error_message: None,
-                execution_time_ms: start_time.elapsed().as_millis() as u64,
-                json_updated: false,
-            };
+            return self.build_execution_result_skipped(sql_file, start_time);
         }
 
         let result = (|| -> Result<ExecutionResult, ExecutorError> {
             let sql_content = self.read_sql_content(sql_file)?;
             let results = self.execute_sql(&sql_content)?;
-            self.build_execution_result(sql_file, &results, start_time, true, None)
+            self.build_execution_result_success(sql_file, &results, start_time)
         })();
 
-        match result {
-            Ok(r) => r,
-            Err(e) => {
-                error!("处理 {} 失败: {}", sql_file.relative_path, e);
-                ExecutionResult {
-                    file_path: sql_file.relative_path.clone(),
-                    success: false,
-                    error_message: Some(e.to_string()),
-                    execution_time_ms: start_time.elapsed().as_millis() as u64,
-                    json_updated: false,
-                }
-            }
-        }
+        result.unwrap_or_else(|e| self.build_execution_result_error(sql_file, &e, start_time))
     }
 
     fn should_skip_file(&self, sql_file: &SqlFile) -> bool {
