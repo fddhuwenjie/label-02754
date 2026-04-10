@@ -121,56 +121,35 @@ impl Executor {
 
         info!("正在处理: {}", relative_path);
 
-        // 检查是否应该基于间隔跳过
         if self.should_skip_file(sql_file) {
             info!("跳过 {} - 在间隔期内", relative_path);
             return self.build_execution_result(relative_path, start_time, true, None, false);
         }
 
-        // 读取 SQL 内容并执行
-        let result = self
-            .read_sql_content(sql_file)
-            .and_then(|sql_content| self.execute_sql(&sql_content))
-            .and_then(|results| {
-                let execution_time_ms = start_time.elapsed().as_millis() as u64;
-                self.write_json_results(sql_file, &results, execution_time_ms)
-                    .map(|_| execution_time_ms)
-            });
-
-        // 构建执行结果
-        match result {
-            Ok(execution_time_ms) => {
-                info!(
-                    "成功处理 {} -> {} ({} ms)",
-                    relative_path,
-                    sql_file.json_path.display(),
-                    execution_time_ms
-                );
-                self.build_execution_result(relative_path, start_time, true, None, true)
-            }
-            Err((_, error_message)) => {
+        match self.execute_pipeline(sql_file, start_time) {
+            Ok(_) => self.build_execution_result(relative_path, start_time, true, None, true),
+            Err(error_message) => {
                 error!("处理 {} 失败: {}", relative_path, error_message);
-                self.build_execution_result(
-                    relative_path,
-                    start_time,
-                    false,
-                    Some(error_message),
-                    false,
-                )
+                self.build_execution_result(relative_path, start_time, false, Some(error_message), false)
             }
         }
     }
 
-    fn read_sql_content(&self, sql_file: &SqlFile) -> Result<String, (u64, String)> {
-        sql_file
-            .read_content()
-            .map_err(|e| (0, e.to_string()))
+    fn execute_pipeline(&self, sql_file: &SqlFile, start_time: Instant) -> Result<(), String> {
+        let sql_content = self.read_sql_content(sql_file)?;
+        let results = self.execute_sql(&sql_content)?;
+        let execution_time_ms = start_time.elapsed().as_millis() as u64;
+        self.write_json_results(sql_file, &results, execution_time_ms)?;
+        info!("成功处理 {} -> {} ({} ms)", sql_file.relative_path, sql_file.json_path.display(), execution_time_ms);
+        Ok(())
     }
 
-    fn execute_sql(&self, sql_content: &str) -> Result<crate::database::QueryResults, (u64, String)> {
-        self.pool
-            .execute_sql(sql_content)
-            .map_err(|e| (0, e.to_string()))
+    fn read_sql_content(&self, sql_file: &SqlFile) -> Result<String, String> {
+        sql_file.read_content().map_err(|e| e.to_string())
+    }
+
+    fn execute_sql(&self, sql_content: &str) -> Result<crate::database::QueryResults, String> {
+        self.pool.execute_sql(sql_content).map_err(|e| e.to_string())
     }
 
     fn write_json_results(
@@ -178,14 +157,9 @@ impl Executor {
         sql_file: &SqlFile,
         results: &crate::database::QueryResults,
         execution_time_ms: u64,
-    ) -> Result<(), (u64, String)> {
-        JsonWriter::write_results(
-            &sql_file.json_path,
-            results,
-            &sql_file.relative_path,
-            execution_time_ms,
-        )
-        .map_err(|e| (execution_time_ms, e.to_string()))
+    ) -> Result<(), String> {
+        JsonWriter::write_results(&sql_file.json_path, results, &sql_file.relative_path, execution_time_ms)
+            .map_err(|e| e.to_string())
     }
 
     fn build_execution_result(
